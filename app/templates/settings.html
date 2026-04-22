@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% set active = "settings" %}
+{% block title %}Cài đặt - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Cài đặt</h1>
+    <p>Cấu hình kết nối và prompt viết bài</p>
+</div>
+
+<!-- WordPress -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>Kết nối WordPress</h2>
+        <div id="wp-status"></div>
+    </div>
+
+    <div class="settings-form-grid">
+        <div class="form-group">
+            <label>URL Website</label>
+            <input type="text" id="wp_url" value="{{ user.wp_url or '' }}" placeholder="https://your-site.com">
+            <small>Địa chỉ trang WordPress (VD: https://example.com)</small>
+        </div>
+        <div class="form-group">
+            <label>Tên đăng nhập</label>
+            <input type="text" id="wp_username" value="{{ user.wp_username or '' }}" placeholder="admin">
+            <small>Username đăng nhập WordPress</small>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+            <label>Application Password</label>
+            <div class="input-with-toggle">
+                <input type="password" id="wp_password" value="{{ user.wp_app_password or '' }}" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('wp_password', this)">Hiện</button>
+            </div>
+            <small>Tạo tại WordPress &rarr; Users &rarr; Profile &rarr; Application Passwords</small>
+        </div>
+    </div>
+
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+        <button class="btn" onclick="testWP()">Kiểm tra kết nối</button>
+        <span id="wp-test-result" style="font-size:13px;margin-left:8px"></span>
+    </div>
+</div>
+
+<!-- Prompt -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>Prompt hệ thống</h2>
+    </div>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Tùy chỉnh prompt viết bài. Để trống sẽ dùng prompt mặc định.</p>
+    <div class="form-group">
+        <textarea id="custom_prompt" rows="14" placeholder="Để trống = dùng prompt mặc định..." style="font-size:12px;line-height:1.6">{{ user.custom_prompt or '' }}</textarea>
+    </div>
+    {% if user.custom_prompt %}
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Đang dùng prompt tùy chỉnh. Xóa hết nội dung và lưu để quay về prompt mặc định.</p>
+    {% else %}
+    <details style="margin-bottom:12px">
+        <summary style="font-size:12px;color:var(--text-secondary);cursor:pointer">Xem prompt mặc định</summary>
+        <pre style="margin-top:8px;background:var(--bg-input);padding:14px;border-radius:8px;font-size:11px;max-height:300px;overflow-y:auto;color:var(--text-secondary);border:1px solid var(--border);white-space:pre-wrap">{{ default_prompt }}</pre>
+    </details>
+    {% endif %}
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+</div>
+
+{% if user.role == 'admin' %}
+<!-- OpenAI (admin only) -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>OpenAI API</h2>
+        <span class="badge" style="background:var(--info-bg);color:var(--info)">
+            Model: {{ env.get('GPT_MODEL', 'gpt-4o-mini') }}
+        </span>
+    </div>
+
+    <div class="settings-form-grid">
+        <div class="form-group">
+            <label>API Key</label>
+            <div class="input-with-toggle">
+                <input type="password" id="openai_key" value="{{ env.get('OPENAI_API_KEY', '') }}" placeholder="sk-...">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('openai_key', this)">Hiện</button>
+            </div>
+            <small>Lấy tại platform.openai.com/api-keys</small>
+        </div>
+        <div class="form-group">
+            <label>Model</label>
+            {% set current_model = env.get('GPT_MODEL', 'gpt-4o-mini') %}
+            <select id="gpt_model" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-input);color:var(--text-primary)">
+                <option value="gpt-4o-mini" {{ 'selected' if current_model == 'gpt-4o-mini' }}>gpt-4o-mini (rẻ, nhanh)</option>
+                <option value="gpt-4o" {{ 'selected' if current_model == 'gpt-4o' }}>gpt-4o (chất lượng cao)</option>
+                <option value="gpt-4.1-mini" {{ 'selected' if current_model == 'gpt-4.1-mini' }}>gpt-4.1-mini (mới nhất, rẻ)</option>
+                <option value="gpt-4.1" {{ 'selected' if current_model == 'gpt-4.1' }}>gpt-4.1 (mới nhất, mạnh)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+</div>
+
+<!-- Pexels (admin only) -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>Pexels (Ảnh minh họa)</h2>
+        <span class="badge" style="background:var(--success-bg);color:var(--success)">Miễn phí</span>
+    </div>
+
+    <div class="settings-form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+            <label>API Key</label>
+            <div class="input-with-toggle">
+                <input type="password" id="pexels_key" value="{{ env.get('PEXELS_API_KEY', '') }}" placeholder="Pexels API Key">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('pexels_key', this)">Hiện</button>
+            </div>
+            <small>Đăng ký miễn phí tại pexels.com/api</small>
+        </div>
+    </div>
+
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+</div>
+{% endif %}
+
+<!-- Save notification -->
+<div id="save-toast" class="save-toast" style="display:none">
+    <span id="save-toast-msg"></span>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePassword(id, btn) {
+    const input = document.getElementById(id);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Ẩn';
+    } else {
+        input.type = 'password';
+        btn.textContent = 'Hiện';
+    }
+}
+
+function showToast(msg, success) {
+    const toast = document.getElementById('save-toast');
+    const msgEl = document.getElementById('save-toast-msg');
+    msgEl.textContent = msg;
+    toast.style.display = 'flex';
+    toast.className = 'save-toast ' + (success ? 'toast-success' : 'toast-error');
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+}
+
+async function saveSettings() {
+    const data = {
+        wp_url: document.getElementById('wp_url').value,
+        wp_username: document.getElementById('wp_username').value,
+        wp_password: document.getElementById('wp_password').value,
+        custom_prompt: document.getElementById('custom_prompt').value,
+    };
+    // Admin fields
+    const openaiKey = document.getElementById('openai_key');
+    if (openaiKey) data.openai_key = openaiKey.value;
+    const gptModel = document.getElementById('gpt_model');
+    if (gptModel) data.gpt_model = gptModel.value;
+    const pexelsKey = document.getElementById('pexels_key');
+    if (pexelsKey) data.pexels_key = pexelsKey.value;
+
+    try {
+        const resp = await fetch('/api/save-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const result = await resp.json();
+        showToast(result.ok ? 'Đã lưu cài đặt thành công!' : 'Lỗi: ' + result.message, result.ok);
+    } catch (e) {
+        showToast('Lỗi kết nối server', false);
+    }
+}
+
+async function testWP() {
+    const el = document.getElementById('wp-test-result');
+    el.textContent = 'Đang kiểm tra...';
+    await saveSettings();
+    try {
+        const resp = await fetch('/api/test-wp');
+        const data = await resp.json();
+        const statusEl = document.getElementById('wp-status');
+        if (data.ok) {
+            el.innerHTML = '<span style="color:var(--success)">Kết nối thành công!</span>';
+            statusEl.innerHTML = '<span class="badge badge-published"><span class="badge-dot"></span> Đã kết nối — ' + data.user + '</span>';
+        } else {
+            el.innerHTML = '<span style="color:var(--danger)">Thất bại: ' + data.error + '</span>';
+            statusEl.innerHTML = '<span class="badge badge-failed"><span class="badge-dot"></span> Chưa kết nối</span>';
+        }
+    } catch (e) {
+        el.innerHTML = '<span style="color:var(--danger)">Lỗi kết nối</span>';
+    }
+}
+</script>
+{% endblock %}

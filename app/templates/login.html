@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - TvGroup.media</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-body">
+    <div class="login-split">
+        <!-- Left: Form -->
+        <div class="login-left">
+            <div class="login-left-inner">
+                <div class="login-logo">
+                    <span class="brand-dot"></span>
+                    <span>TvGroup.media</span>
+                </div>
+
+                <h1 class="login-heading">Chào mừng trở lại</h1>
+                <p class="login-subtitle">Nhập thông tin để đăng nhập</p>
+
+                {% if error %}
+                <div class="login-error">{{ error }}</div>
+                {% endif %}
+
+                <form method="post" action="/login" class="login-form">
+                    <div class="form-group">
+                        <label>Tên đăng nhập</label>
+                        <input type="text" name="username" required autofocus placeholder="Nhập tên đăng nhập">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" name="password" required placeholder="Nhập mật khẩu">
+                    </div>
+                    <button type="submit" class="btn btn-primary login-btn">Đăng nhập</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right: Branding -->
+        <div class="login-right">
+            <div class="login-right-content">
+                <div class="login-right-logo">Tv</div>
+                <div class="login-right-name">TvGroup.media</div>
+                <div class="login-right-tagline">Health Content Automation</div>
+            </div>
+            <!-- Decorative circles -->
+            <div class="login-decor login-decor-1"></div>
+            <div class="login-decor login-decor-2"></div>
+            <div class="login-decor login-decor-3"></div>
+        </div>
+    </div>
+</body>
+</html>

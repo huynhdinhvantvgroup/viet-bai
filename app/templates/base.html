@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}tvgroup.media{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <a href="/" class="sidebar-brand">
+            <span class="brand-dot"></span>
+            <span>TvGroup.media</span>
+        </a>
+        <div class="sidebar-nav">
+            <a href="/" class="nav-link {% if active == 'dashboard' %}active{% endif %}">
+                <span class="nav-icon">&#9776;</span>
+                <span>Trang chủ</span>
+            </a>
+            <a href="/create" class="nav-link {% if active == 'create' %}active{% endif %}">
+                <span class="nav-icon">&#9998;</span>
+                <span>Tạo bài viết</span>
+            </a>
+            <a href="/queue" class="nav-link {% if active == 'queue' %}active{% endif %}">
+                <span class="nav-icon">&#128203;</span>
+                <span>Hàng chờ</span>
+            </a>
+            <a href="/settings" class="nav-link {% if active == 'settings' %}active{% endif %}">
+                <span class="nav-icon">&#9881;</span>
+                <span>Cài đặt</span>
+            </a>
+            {% if user and user.role == 'admin' %}
+            <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+            <a href="/admin/users" class="nav-link {% if active == 'users' %}active{% endif %}">
+                <span class="nav-icon">&#128101;</span>
+                <span>Tài khoản</span>
+            </a>
+            {% endif %}
+        </div>
+        <div class="sidebar-footer">
+            {% if user %}
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span>{{ user.username }}{% if user.role == 'admin' %} (admin){% endif %}</span>
+                <a href="/logout" style="color:var(--text-muted);font-size:11px;text-decoration:none">Đăng xuất</a>
+            </div>
+            {% else %}
+            tvgroup.media v1.0
+            {% endif %}
+        </div>
+    </nav>
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

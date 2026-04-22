@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set active = "create" %}
+{% block title %}Xem trước - {{ article.title }}{% endblock %}
+
+{% block content %}
+<div class="preview-header">
+    <div class="page-header">
+        <h1>Xem trước bài viết</h1>
+    </div>
+    <div class="preview-meta">
+        <span class="badge badge-{{ article.status }}">
+            <span class="badge-dot"></span>
+            {% if article.status == 'preview' %}Xem trước
+            {% elif article.status == 'published' %}Đã đăng
+            {% elif article.status == 'failed' %}Thất bại
+            {% else %}{{ article.status }}{% endif %}
+        </span>
+        <span style="color:var(--text-secondary);font-size:13px">{{ article.word_count }} từ</span>
+    </div>
+</div>
+
+{% if article.error_message %}
+<div style="background:var(--danger-bg);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:14px;margin-bottom:16px">
+    <span class="error-text">Lỗi: {{ article.error_message }}</span>
+</div>
+{% endif %}
+
+<div class="preview-actions-top">
+    <form method="post" action="/preview/{{ article.id }}/regenerate" class="inline-form">
+        <button type="submit" class="btn btn-warning">Tạo lại</button>
+    </form>
+    {% if article.status in ('preview', 'failed') %}
+    <form method="post" action="/preview/{{ article.id }}/publish" class="inline-form">
+        <button type="submit" class="btn btn-success">Đăng lên WordPress</button>
+    </form>
+    {% endif %}
+    <a href="/" class="btn">Quay lại</a>
+</div>
+
+<div class="preview-container">
+    {% if article.featured_image_path %}
+    <div class="preview-featured">
+        <img src="/uploads/{{ article.featured_image_path.replace('\\', '/').split('/')[-1] }}" alt="Ảnh đại diện">
+    </div>
+    {% endif %}
+
+    <h2 class="preview-title">{{ article.title }}</h2>
+
+    <div class="preview-content">
+        {{ article.content | safe }}
+    </div>
+</div>
+
+{% if stock_urls %}
+<div class="preview-images">
+    <h3 style="font-size:14px;margin-bottom:14px">Ảnh minh họa (Pexels)</h3>
+    <div class="image-grid">
+        {% for url in stock_urls %}
+        <div class="image-card">
+            <img src="{{ url }}" alt="Ảnh minh họa {{ loop.index }}">
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if article.status == 'published' %}
+<div class="published-info">
+    Đã đăng thành công: <a href="{{ article.wp_post_url }}" target="_blank">{{ article.wp_post_url }}</a>
+</div>
+{% endif %}
+{% endblock %}

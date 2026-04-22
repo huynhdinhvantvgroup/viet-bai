@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% set active = "queue" %}
+{% block title %}Hàng chờ - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Hàng chờ</h1>
+    <p>Quản lý bài viết đang chờ xử lý</p>
+</div>
+
+<div class="zone-container" id="zone-queued">
+    <div class="zone-header">
+        <div class="zone-header-left">
+            <h2>Danh sách chờ</h2>
+            <span class="zone-count" id="queued-count">{{ queued_articles|length }}</span>
+        </div>
+        <div class="zone-header-actions">
+            <button class="btn btn-sm btn-primary" id="btn-run-selected" style="display:none">Chạy đã chọn</button>
+            <button class="btn btn-sm btn-success" id="btn-run-all" {% if not queued_articles %}style="display:none"{% endif %}>Chạy tất cả</button>
+        </div>
+    </div>
+    <div class="zone-body" id="queued-body">
+        {% if queued_articles %}
+        {% for a in queued_articles %}
+        <div class="article-row queue-row" data-id="{{ a.id }}">
+            <label class="queue-checkbox">
+                <input type="checkbox" value="{{ a.id }}" class="queue-check">
+            </label>
+            <div class="article-row-info">
+                <span class="article-id">#{{ a.id }}</span>
+                <span class="article-title">{{ a.title or "(Chưa tạo)" }}</span>
+            </div>
+            <div class="article-row-right">
+                <span class="badge badge-queued">
+                    <span class="badge-dot"></span>Hàng chờ
+                </span>
+                <span class="article-meta">{{ a.created_at.strftime('%H:%M %d/%m') if a.created_at else '' }}</span>
+                <form method="post" action="/article/{{ a.id }}/delete" class="inline-form"
+                      onsubmit="return confirm('Xóa bài viết này?')">
+                    <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="zone-empty">
+            <div class="empty-state-icon">&#128203;</div>
+            <p>Hàng chờ trống. Tạo bài viết và chọn "Đưa vào hàng chờ" để thêm vào đây.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function bindCheckboxes() {
+    const checks = document.querySelectorAll('.queue-check');
+    const btnSel = document.getElementById('btn-run-selected');
+    checks.forEach(cb => {
+        cb.addEventListener('change', () => {
+            const any = [...document.querySelectorAll('.queue-check:checked')].length > 0;
+            btnSel.style.display = any ? '' : 'none';
+        });
+    });
+}
+
+function renderQueued(articles) {
+    const el = document.getElementById('queued-body');
+    document.getElementById('queued-count').textContent = articles.length;
+    const btnAll = document.getElementById('btn-run-all');
+    btnAll.style.display = articles.length ? '' : 'none';
+    if (!articles.length) {
+        el.innerHTML = '<div class="zone-empty"><div class="empty-state-icon">&#128203;</div><p>Hàng chờ trống.</p></div>';
+        document.getElementById('btn-run-selected').style.display = 'none';
+        return;
+    }
+    el.innerHTML = articles.map(a => `
+        <div class="article-row queue-row" data-id="${a.id}">
+            <label class="queue-checkbox">
+                <input type="checkbox" value="${a.id}" class="queue-check">
+            </label>
+            <div class="article-row-info">
+                <span class="article-id">#${a.id}</span>
+                <span class="article-title">${a.title || '(Chưa tạo)'}</span>
+            </div>
+            <div class="article-row-right">
+                <span class="badge badge-queued">
+                    <span class="badge-dot"></span>Hàng chờ
+                </span>
+                <span class="article-meta">${a.created_at}</span>
+            </div>
+        </div>
+    `).join('');
+    bindCheckboxes();
+}
+
+async function runQueued(ids) {
+    await fetch('/api/run-queued', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids}),
+    });
+    pollQueue();
+}
+
+document.getElementById('btn-run-selected')?.addEventListener('click', () => {
+    const ids = [...document.querySelectorAll('.queue-check:checked')].map(c => parseInt(c.value));
+    if (ids.length) runQueued(ids);
+});
+
+document.getElementById('btn-run-all')?.addEventListener('click', () => {
+    const ids = [...document.querySelectorAll('.queue-check')].map(c => parseInt(c.value));
+    if (ids.length) runQueued(ids);
+});
+
+async function pollQueue() {
+    try {
+        const resp = await fetch('/api/articles-status');
+        const data = await resp.json();
+        renderQueued(data.queued);
+    } catch (e) {
+        console.error('Poll error:', e);
+    }
+}
+
+bindCheckboxes();
+setInterval(pollQueue, 3000);
+</script>
+{% endblock %}

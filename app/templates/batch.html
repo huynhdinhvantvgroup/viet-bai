@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% set active = "batch" %}
+{% block title %}Chạy hàng loạt - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Chạy hàng loạt</h1>
+    <p>Upload file CSV để tạo nhiều bài viết cùng lúc</p>
+</div>
+
+{% if batch.running %}
+<div class="batch-progress">
+    <div class="batch-info">
+        Đang xử lý: {{ batch.done }}/{{ batch.total }} &mdash; {{ batch.current }}
+    </div>
+    <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ (batch.done / batch.total * 100) if batch.total > 0 else 0 }}%"></div>
+    </div>
+    <p class="batch-note">Tự động cập nhật mỗi 3 giây.</p>
+</div>
+{% else %}
+<form method="post" action="/batch" enctype="multipart/form-data" class="form-card">
+    <div class="form-group">
+        <label>File CSV</label>
+        <input type="file" name="csv_file" accept=".csv" class="file-input" required>
+        <small>Cột bắt buộc: <code>competitor_content</code>, <code>notes</code></small><br>
+        <small>Cột tùy chọn: <code>screenshot</code>, <code>featured_image</code>, <code>category</code>, <code>tags</code></small>
+    </div>
+
+    <div class="form-group">
+        <label class="checkbox-label">
+            <input type="checkbox" name="auto_publish" value="yes">
+            Tự động đăng sau khi tạo (bỏ qua xem trước)
+        </label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Bắt đầu chạy</button>
+    </div>
+</form>
+
+<div class="csv-example">
+    <h3>Ví dụ file CSV</h3>
+    <pre>competitor_content,notes,screenshot,featured_image,category,tags
+"Nội dung bài viết đối thủ...","Tập trung vào nghệ","","","Health","turmeric,senior"
+"Nội dung bài khác...","Nhấn mạnh buổi sáng","","","Health","morning routine,energy"</pre>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if batch.running %}
+<script>
+setInterval(async () => {
+    const resp = await fetch('/api/batch-status');
+    const data = await resp.json();
+    if (!data.running) location.reload();
+    document.querySelector('.batch-info').textContent =
+        `Đang xử lý: ${data.done}/${data.total} — ${data.current}`;
+    const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
+    document.querySelector('.progress-fill').style.width = pct + '%';
+}, 3000);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% set active = "dashboard" %}
+{% block title %}Trang chủ - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Trang chủ</h1>
+    <p>Tổng quan hoạt động hôm nay</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon icon-published">&#10003;</div>
+        <div class="stat-number" id="stat-published">{{ published_today }}</div>
+        <div class="stat-label">Đã đăng hôm nay</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-pending">&#8987;</div>
+        <div class="stat-number" id="stat-processing">{{ processing_count }}</div>
+        <div class="stat-label">Đang xử lý</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-failed">&#10007;</div>
+        <div class="stat-number" id="stat-failed">{{ failed_today }}</div>
+        <div class="stat-label">Thất bại</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-total">&#9733;</div>
+        <div class="stat-number" id="stat-total">{{ total_all }}</div>
+        <div class="stat-label">Tổng đã đăng</div>
+    </div>
+</div>
+
+<div class="table-container">
+    <div class="table-header">
+        <h2>Bài viết gần đây</h2>
+        <a href="/create" class="btn btn-primary btn-sm">+ Tạo mới</a>
+    </div>
+    {% if recent %}
+    <table class="article-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tiêu đề</th>
+                <th>Trạng thái</th>
+                <th>Số từ</th>
+                <th>Thời gian</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="article-tbody">
+            {% for a in recent %}
+            <tr data-id="{{ a.id }}">
+                <td>#{{ a.id }}</td>
+                <td class="title-cell">{{ a.title or "(Chưa tạo)" }}</td>
+                <td>
+                    <span class="badge badge-{{ a.status }}">
+                        <span class="badge-dot"></span>
+                        {% if a.status == 'pending' %}Chờ xử lý
+                        {% elif a.status == 'generating' %}Đang viết bài
+                        {% elif a.status == 'images' %}Tìm ảnh
+                        {% elif a.status == 'uploading' %}Upload ảnh
+                        {% elif a.status == 'ready' %}Sẵn sàng
+                        {% elif a.status == 'publishing' %}Đang đăng
+                        {% elif a.status == 'published' %}Đã đăng
+                        {% elif a.status == 'failed' %}Thất bại
+                        {% elif a.status == 'queued' %}Hàng chờ
+                        {% else %}{{ a.status }}{% endif %}
+                    </span>
+                </td>
+                <td>{{ a.word_count }}</td>
+                <td>{{ a.created_at.strftime('%H:%M %d/%m') if a.created_at else '' }}</td>
+                <td class="actions-cell">
+                    {% if a.status in ('ready', 'failed') %}
+                        <a href="/preview/{{ a.id }}" class="btn btn-sm">Xem</a>
+                    {% elif a.status == 'published' %}
+                        <a href="{{ a.wp_post_url }}" target="_blank" class="btn btn-sm btn-success">Mở bài</a>
+                    {% endif %}
+                    <form method="post" action="/article/{{ a.id }}/delete" class="inline-form"
+                          onsubmit="return confirm('Xóa bài viết này?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">&#128196;</div>
+        <p>Chưa có bài viết nào. Bấm "Tạo mới" để bắt đầu.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_LABELS = {
+    pending: 'Chờ xử lý', generating: 'Đang viết bài', images: 'Tìm ảnh',
+    uploading: 'Upload ảnh', ready: 'Sẵn sàng', publishing: 'Đang đăng',
+    published: 'Đã đăng', failed: 'Thất bại', queued: 'Hàng chờ',
+};
+
+setInterval(async () => {
+    try {
+        const resp = await fetch('/api/articles-status');
+        const data = await resp.json();
+        document.getElementById('stat-published').textContent = data.stats.published_today;
+        document.getElementById('stat-processing').textContent = data.stats.processing_count;
+        document.getElementById('stat-failed').textContent = data.stats.failed_today;
+        document.getElementById('stat-total').textContent = data.stats.total_all;
+
+        const all = [...data.processing, ...data.queued, ...data.done];
+        const tbody = document.getElementById('article-tbody');
+        if (!tbody) return;
+
+        all.forEach(a => {
+            const row = tbody.querySelector(`tr[data-id="${a.id}"]`);
+            if (!row) return;
+            const cells = row.querySelectorAll('td');
+            cells[1].textContent = a.title || '(Chưa tạo)';
+            cells[2].innerHTML = `<span class="badge badge-${a.status}"><span class="badge-dot"></span>${STATUS_LABELS[a.status] || a.status}</span>`;
+            cells[3].textContent = a.word_count;
+            // Update actions column
+            let actions = '';
+            if (a.status === 'published' && a.wp_post_url) {
+                actions += `<a href="${a.wp_post_url}" target="_blank" class="btn btn-sm btn-success">Mở bài</a>`;
+            } else if (a.status === 'ready' || a.status === 'failed') {
+                actions += `<a href="/preview/${a.id}" class="btn btn-sm">Xem</a>`;
+            }
+            actions += `<form method="post" action="/article/${a.id}/delete" class="inline-form" onsubmit="return confirm('Xóa bài viết này?')"><button type="submit" class="btn btn-sm btn-danger">Xóa</button></form>`;
+            cells[5].innerHTML = actions;
+        });
+    } catch (e) {}
+}, 3000);
+</script>
+{% endblock %}

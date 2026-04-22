@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = "create" %}
+{% block title %}Tạo bài viết - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Tạo bài viết</h1>
+    <p>Nhập thông tin để tạo bài viết tự động</p>
+</div>
+
+<form method="post" action="/create" enctype="multipart/form-data" class="form-card" id="create-form">
+    <div class="form-group">
+        <label>Ảnh chụp bài Facebook</label>
+        <div class="paste-zone" id="zone-screenshot" tabindex="0">
+            <input type="file" name="screenshot" accept="image/*" class="paste-zone-input">
+            <div class="paste-zone-placeholder">
+                <div class="paste-zone-icon">&#128247;</div>
+                <div>Ctrl+V để dán ảnh, kéo thả, hoặc bấm để chọn file</div>
+            </div>
+            <div class="paste-zone-preview" style="display:none">
+                <img src="" alt="Preview">
+                <button type="button" class="paste-zone-remove">&times;</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Ảnh đại diện (thumbnail WordPress)</label>
+        <div class="paste-zone" id="zone-featured" tabindex="0">
+            <input type="file" name="featured_image" accept="image/*" class="paste-zone-input">
+            <div class="paste-zone-placeholder">
+                <div class="paste-zone-icon">&#128444;</div>
+                <div>Ctrl+V để dán ảnh, kéo thả, hoặc bấm để chọn file</div>
+            </div>
+            <div class="paste-zone-preview" style="display:none">
+                <img src="" alt="Preview">
+                <button type="button" class="paste-zone-remove">&times;</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>Nội dung bài đối thủ</label>
+        <textarea name="competitor_content" rows="8" placeholder="Dán nội dung bài viết đối thủ vào đây..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>Ghi chú (tùy chọn)</label>
+        <textarea name="notes" rows="3" placeholder="Chủ đề, góc nhìn, điều cần nhấn mạnh hoặc tránh..."></textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" name="action" value="now" class="btn btn-primary">
+            Tạo ngay
+        </button>
+        <button type="submit" name="action" value="queue" class="btn btn-warning">
+            Đưa vào hàng chờ
+        </button>
+    </div>
+</form>
+{% endblock %}
