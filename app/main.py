@@ -385,6 +385,11 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             gpt_generator.client = gpt_generator.AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
             image_search.PEXELS_API_KEY = cfg.PEXELS_API_KEY
 
+        # Save default prompt to prompt.txt
+        if "default_prompt" in data and data["default_prompt"].strip():
+            from app.config import PROMPT_FILE
+            PROMPT_FILE.write_text(data["default_prompt"], encoding="utf-8")
+
     return JSONResponse({"ok": True, "message": "Đã lưu cài đặt"})
 
 

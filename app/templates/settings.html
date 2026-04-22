@@ -123,6 +123,21 @@
         <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
     </div>
 </div>
+
+<!-- Prompt mặc định (admin only) -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>Prompt mặc định</h2>
+        <span class="badge" style="background:var(--warning-bg);color:var(--warning)">Áp dụng cho tất cả user</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Prompt này được dùng khi user không tự tùy chỉnh prompt riêng.</p>
+    <div class="form-group">
+        <textarea id="default_prompt" rows="16" style="font-size:12px;line-height:1.6" placeholder="Nhập prompt mặc định...">{{ default_prompt }}</textarea>
+    </div>
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+</div>
 {% endif %}
 
 <!-- Save notification -->
@@ -168,6 +183,8 @@ async function saveSettings() {
     if (gptModel) data.gpt_model = gptModel.value;
     const pexelsKey = document.getElementById('pexels_key');
     if (pexelsKey) data.pexels_key = pexelsKey.value;
+    const defaultPrompt = document.getElementById('default_prompt');
+    if (defaultPrompt) data.default_prompt = defaultPrompt.value;
 
     try {
         const resp = await fetch('/api/save-settings', {
