@@ -126,7 +126,6 @@ async def process_single_article(
         result = await generate_article(
             screenshot_path=article.screenshot_path,
             competitor_content=article.competitor_content,
-            notes=article.notes,
             custom_prompt=custom_prompt,
         )
         article.title = result["title"]

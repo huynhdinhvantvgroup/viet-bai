@@ -3,13 +3,23 @@ import json
 import markdown
 from pathlib import Path
 from openai import AsyncOpenAI
-from app.config import OPENAI_API_KEY, GPT_MODEL, PROMPT_FILE
+import app.config as cfg
 
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+client = AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
+
+
+def _get_client() -> tuple[AsyncOpenAI, str]:
+    """Return the right client and model name based on current config."""
+    model = cfg.GPT_MODEL
+    if model.startswith("gemini-"):
+        return AsyncOpenAI(api_key=cfg.GEMINI_API_KEY, base_url=GEMINI_BASE_URL), model
+    return client, model
 
 
 def _load_prompt() -> str:
-    return PROMPT_FILE.read_text(encoding="utf-8")
+    return cfg.PROMPT_FILE.read_text(encoding="utf-8")
 
 
 def _encode_image(image_path: str) -> str | None:
@@ -26,7 +36,6 @@ def _encode_image(image_path: str) -> str | None:
 async def generate_article(
     screenshot_path: str = "",
     competitor_content: str = "",
-    notes: str = "",
     custom_prompt: str | None = None,
 ) -> dict:
     """Generate article using GPT. Returns {title, content, word_count}."""
@@ -66,24 +75,18 @@ Output the article as clean HTML for WordPress. Rules:
             "text": f"COMPETITOR ARTICLE CONTENT:\n\n{competitor_content.strip()}",
         })
 
-    # Notes
-    if notes.strip():
-        user_parts.append({
-            "type": "text",
-            "text": f"OPTIONAL NOTES:\n\n{notes.strip()}",
-        })
-
     # Fallback if no input at all
     if not user_parts:
         user_parts.append({"type": "text", "text": "Please generate a health article based on your system prompt guidelines."})
 
-    response = await client.chat.completions.create(
-        model=GPT_MODEL,
+    active_client, model = _get_client()
+    response = await active_client.chat.completions.create(
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_parts},
         ],
-        max_tokens=4096,
+        max_completion_tokens=4096,
         temperature=0.7,
     )
 
@@ -128,8 +131,9 @@ Output the article as clean HTML for WordPress. Rules:
 
 async def generate_image_keywords(title: str, content: str) -> list[str]:
     """Generate 3 English search keywords for Pexels stock photos."""
-    response = await client.chat.completions.create(
-        model=GPT_MODEL,
+    active_client, model = _get_client()
+    response = await active_client.chat.completions.create(
+        model=model,
         messages=[
             {
                 "role": "system",
@@ -146,7 +150,7 @@ async def generate_image_keywords(title: str, content: str) -> list[str]:
                 "content": f"Title: {title}\n\nFirst 200 words: {content[:800]}",
             },
         ],
-        max_tokens=100,
+        max_completion_tokens=100,
         temperature=0.5,
     )
 

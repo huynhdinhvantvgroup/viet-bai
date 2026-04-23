@@ -66,18 +66,19 @@
 </div>
 
 {% if user.role == 'admin' %}
-<!-- OpenAI (admin only) -->
+<!-- API Keys (admin only) -->
 <div class="settings-section">
     <div class="settings-section-header">
-        <h2>OpenAI API</h2>
+        <h2>API Keys</h2>
+        {% set current_model = env.get('GPT_MODEL', 'gpt-5.4-mini') %}
         <span class="badge" style="background:var(--info-bg);color:var(--info)">
-            Model: {{ env.get('GPT_MODEL', 'gpt-4o-mini') }}
+            Model: {{ current_model }}
         </span>
     </div>
 
     <div class="settings-form-grid">
         <div class="form-group">
-            <label>API Key</label>
+            <label>OpenAI API Key</label>
             <div class="input-with-toggle">
                 <input type="password" id="openai_key" value="{{ env.get('OPENAI_API_KEY', '') }}" placeholder="sk-...">
                 <button type="button" class="btn-toggle-pw" onclick="togglePassword('openai_key', this)">Hiện</button>
@@ -85,37 +86,42 @@
             <small>Lấy tại platform.openai.com/api-keys</small>
         </div>
         <div class="form-group">
-            <label>Model</label>
-            {% set current_model = env.get('GPT_MODEL', 'gpt-4o-mini') %}
-            <select id="gpt_model" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-input);color:var(--text-primary)">
-                <option value="gpt-4o-mini" {{ 'selected' if current_model == 'gpt-4o-mini' }}>gpt-4o-mini (rẻ, nhanh)</option>
-                <option value="gpt-4o" {{ 'selected' if current_model == 'gpt-4o' }}>gpt-4o (chất lượng cao)</option>
-                <option value="gpt-4.1-mini" {{ 'selected' if current_model == 'gpt-4.1-mini' }}>gpt-4.1-mini (mới nhất, rẻ)</option>
-                <option value="gpt-4.1" {{ 'selected' if current_model == 'gpt-4.1' }}>gpt-4.1 (mới nhất, mạnh)</option>
-            </select>
+            <label>Gemini API Key</label>
+            <div class="input-with-toggle">
+                <input type="password" id="gemini_key" value="{{ env.get('GEMINI_API_KEY', '') }}" placeholder="AIza...">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('gemini_key', this)">Hiện</button>
+            </div>
+            <small>Lấy tại aistudio.google.com/apikey</small>
         </div>
-    </div>
-
-    <div class="settings-actions">
-        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
-    </div>
-</div>
-
-<!-- Pexels (admin only) -->
-<div class="settings-section">
-    <div class="settings-section-header">
-        <h2>Pexels (Ảnh minh họa)</h2>
-        <span class="badge" style="background:var(--success-bg);color:var(--success)">Miễn phí</span>
-    </div>
-
-    <div class="settings-form-grid">
-        <div class="form-group" style="grid-column:1/-1">
-            <label>API Key</label>
+        <div class="form-group">
+            <label>Pexels API Key</label>
             <div class="input-with-toggle">
                 <input type="password" id="pexels_key" value="{{ env.get('PEXELS_API_KEY', '') }}" placeholder="Pexels API Key">
                 <button type="button" class="btn-toggle-pw" onclick="togglePassword('pexels_key', this)">Hiện</button>
             </div>
             <small>Đăng ký miễn phí tại pexels.com/api</small>
+        </div>
+        <div class="form-group">
+            <label>Model viết bài</label>
+            <select id="gpt_model" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-input);color:var(--text-primary)">
+                <optgroup label="── OpenAI GPT-5.4 (mới nhất) ──">
+                    <option value="gpt-5.4-mini" {{ 'selected' if current_model == 'gpt-5.4-mini' }}>gpt-5.4-mini — cân bằng, $0.75/$4.50</option>
+                    <option value="gpt-5.4" {{ 'selected' if current_model == 'gpt-5.4' }}>gpt-5.4 — mạnh nhất, $2.50/$15.00</option>
+                    <option value="gpt-5.4-nano" {{ 'selected' if current_model == 'gpt-5.4-nano' }}>gpt-5.4-nano — rẻ nhất, $0.20/$1.25</option>
+                </optgroup>
+                <optgroup label="── OpenAI GPT cũ ──">
+                    <option value="gpt-4.1" {{ 'selected' if current_model == 'gpt-4.1' }}>gpt-4.1 — $2.00/$8.00</option>
+                    <option value="gpt-4.1-mini" {{ 'selected' if current_model == 'gpt-4.1-mini' }}>gpt-4.1-mini — $0.40/$1.60</option>
+                    <option value="gpt-4.1-nano" {{ 'selected' if current_model == 'gpt-4.1-nano' }}>gpt-4.1-nano — $0.10/$0.40</option>
+                    <option value="gpt-4o" {{ 'selected' if current_model == 'gpt-4o' }}>gpt-4o — $2.50/$10.00</option>
+                    <option value="gpt-4o-mini" {{ 'selected' if current_model == 'gpt-4o-mini' }}>gpt-4o-mini — $0.15/$0.60</option>
+                </optgroup>
+                <optgroup label="── Google Gemini (cần Gemini API Key) ──">
+                    <option value="gemini-2.5-flash" {{ 'selected' if current_model == 'gemini-2.5-flash' }}>gemini-2.5-flash — cân bằng, $0.30/$2.50</option>
+                    <option value="gemini-2.5-pro" {{ 'selected' if current_model == 'gemini-2.5-pro' }}>gemini-2.5-pro — mạnh nhất, $1.25/$10.00</option>
+                    <option value="gemini-2.5-flash-lite" {{ 'selected' if current_model == 'gemini-2.5-flash-lite' }}>gemini-2.5-flash-lite — rẻ nhất, $0.10/$0.40</option>
+                </optgroup>
+            </select>
         </div>
     </div>
 
@@ -179,6 +185,8 @@ async function saveSettings() {
     // Admin fields
     const openaiKey = document.getElementById('openai_key');
     if (openaiKey) data.openai_key = openaiKey.value;
+    const geminiKey = document.getElementById('gemini_key');
+    if (geminiKey) data.gemini_key = geminiKey.value;
     const gptModel = document.getElementById('gpt_model');
     if (gptModel) data.gpt_model = gptModel.value;
     const pexelsKey = document.getElementById('pexels_key');
@@ -193,7 +201,12 @@ async function saveSettings() {
             body: JSON.stringify(data),
         });
         const result = await resp.json();
-        showToast(result.ok ? 'Đã lưu cài đặt thành công!' : 'Lỗi: ' + result.message, result.ok);
+        if (result.ok) {
+            showToast('Đã lưu cài đặt thành công!', true);
+            setTimeout(() => { window.location.reload(); }, 1000);
+        } else {
+            showToast('Lỗi: ' + result.message, false);
+        }
     } catch (e) {
         showToast('Lỗi kết nối server', false);
     }

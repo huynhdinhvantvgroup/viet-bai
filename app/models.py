@@ -36,6 +36,7 @@ class Article(Base):
     # Input
     competitor_content = Column(Text, default="")
     notes = Column(Text, default="")
+    caption = Column(Text, default="")
     screenshot_path = Column(String(500), default="")
     featured_image_path = Column(String(500), default="")
     # Generated

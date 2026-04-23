@@ -25,6 +25,15 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), na
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
+# Jinja2 filter: UTC → GMT+7
+from datetime import timedelta, timezone as tz
+_tz7 = tz(timedelta(hours=7))
+def _to_vn(dt, fmt="%H:%M %d/%m"):
+    if not dt:
+        return ""
+    return dt.replace(tzinfo=tz.utc).astimezone(_tz7).strftime(fmt) if dt.tzinfo is None else dt.astimezone(_tz7).strftime(fmt)
+templates.env.filters["vn_time"] = _to_vn
+
 # Auth middleware — must be added before routes
 login_required_middleware(app)
 
@@ -92,8 +101,10 @@ async def logout():
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    from datetime import datetime, timezone
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    from datetime import datetime, timezone, timedelta
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     base = db.query(Article).filter(Article.user_id == user.id)
 
@@ -147,7 +158,7 @@ async def create_form(request: Request, db: Session = Depends(get_db)):
 async def create_article(
     request: Request,
     competitor_content: str = Form(""),
-    notes: str = Form(""),
+    caption: str = Form(""),
     screenshot: UploadFile = File(None),
     featured_image: UploadFile = File(None),
     action: str = Form("now"),
@@ -168,7 +179,7 @@ async def create_article(
     article = Article(
         user_id=user.id,
         competitor_content=competitor_content,
-        notes=notes,
+        caption=caption,
         screenshot_path=screenshot_path,
         featured_image_path=featured_path,
         wp_category="Health",
@@ -237,8 +248,10 @@ async def delete_article(request: Request, article_id: int, db: Session = Depend
 @app.get("/api/articles-status")
 async def articles_status(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    from datetime import datetime, timezone
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    from datetime import datetime, timezone, timedelta
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     base = db.query(Article).filter(Article.user_id == user.id)
 
@@ -268,7 +281,8 @@ async def articles_status(request: Request, db: Session = Depends(get_db)):
             "word_count": a.word_count,
             "wp_post_url": a.wp_post_url or "",
             "error_message": a.error_message or "",
-            "created_at": a.created_at.strftime("%H:%M %d/%m") if a.created_at else "",
+            "caption": a.caption or "",
+            "created_at": _to_vn(a.created_at),
         }
 
     return JSONResponse({
@@ -357,6 +371,7 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
         env = _read_env()
         admin_fields = {
             "openai_key": "OPENAI_API_KEY",
+            "gemini_key": "GEMINI_API_KEY",
             "gpt_model": "GPT_MODEL",
             "pexels_key": "PEXELS_API_KEY",
         }
@@ -374,11 +389,13 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             _write_env(env)
 
             cfg.OPENAI_API_KEY = env.get("OPENAI_API_KEY", "")
-            cfg.GPT_MODEL = env.get("GPT_MODEL", "gpt-4o-mini")
+            cfg.GEMINI_API_KEY = env.get("GEMINI_API_KEY", "")
+            cfg.GPT_MODEL = env.get("GPT_MODEL", "gpt-5.4-mini")
             cfg.PEXELS_API_KEY = env.get("PEXELS_API_KEY", "")
 
             from app.services import gpt_generator, image_search
             gpt_generator.client = gpt_generator.AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
+            gpt_generator.GEMINI_API_KEY = cfg.GEMINI_API_KEY
             image_search.PEXELS_API_KEY = cfg.PEXELS_API_KEY
 
         # Save default prompt to prompt.txt
@@ -419,9 +436,29 @@ async def admin_users(request: Request, db: Session = Depends(get_db)):
     if user.role != "admin":
         return RedirectResponse(url="/")
     users = db.query(User).order_by(User.id.asc()).all()
+
+    from datetime import datetime, timezone, timedelta
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    user_stats = {}
+    for u in users:
+        posts_day = db.query(Article).filter(
+            Article.user_id == u.id, Article.status == "published",
+            Article.published_at >= today_start,
+        ).count()
+        posts_month = db.query(Article).filter(
+            Article.user_id == u.id, Article.status == "published",
+            Article.published_at >= month_start,
+        ).count()
+        user_stats[u.id] = {"posts_day": posts_day, "posts_month": posts_month}
+
     return templates.TemplateResponse(request, "admin_users.html", {
         "user": user,
         "users": users,
+        "user_stats": user_stats,
     })
 
 

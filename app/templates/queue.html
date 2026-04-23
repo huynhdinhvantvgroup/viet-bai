@@ -34,7 +34,7 @@
                 <span class="badge badge-queued">
                     <span class="badge-dot"></span>Hàng chờ
                 </span>
-                <span class="article-meta">{{ a.created_at.strftime('%H:%M %d/%m') if a.created_at else '' }}</span>
+                <span class="article-meta">{{ a.created_at|vn_time }}</span>
                 <form method="post" action="/article/{{ a.id }}/delete" class="inline-form"
                       onsubmit="return confirm('Xóa bài viết này?')">
                     <button type="submit" class="btn btn-sm btn-danger">Xóa</button>

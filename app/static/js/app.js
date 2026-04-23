@@ -89,20 +89,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ─── Settings inputs: click to clear, blur to restore ───
+    // ─── Settings inputs: select all on focus for easy replacement ───
     document.querySelectorAll('.settings-section input[type="text"], .settings-section input[type="password"]').forEach(input => {
         input.addEventListener('focus', () => {
-            if (!input.dataset.original) {
-                input.dataset.original = input.value;
-            }
-            input.value = '';
-        });
-        input.addEventListener('blur', () => {
-            if (input.value === '' && input.dataset.original) {
-                input.value = input.dataset.original;
-            } else if (input.value !== '') {
-                input.dataset.original = input.value;
-            }
+            input.select();
         });
     });
 

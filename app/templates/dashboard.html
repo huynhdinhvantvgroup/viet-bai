@@ -45,6 +45,7 @@
                 <th>Trạng thái</th>
                 <th>Số từ</th>
                 <th>Thời gian</th>
+                <th>Caption</th>
                 <th>Thao tác</th>
             </tr>
         </thead>
@@ -69,7 +70,12 @@
                     </span>
                 </td>
                 <td>{{ a.word_count }}</td>
-                <td>{{ a.created_at.strftime('%H:%M %d/%m') if a.created_at else '' }}</td>
+                <td>{{ a.created_at|vn_time }}</td>
+                <td class="caption-cell">
+                    {% if a.caption %}
+                    <button class="btn btn-sm btn-copy-caption" onclick="copyCaption(this, `{{ a.caption|e }}`)" title="Copy caption">📋 Copy</button>
+                    {% endif %}
+                </td>
                 <td class="actions-cell">
                     {% if a.status in ('ready', 'failed') %}
                         <a href="/preview/{{ a.id }}" class="btn btn-sm">Xem</a>
@@ -96,6 +102,15 @@
 
 {% block scripts %}
 <script>
+function copyCaption(btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        btn.classList.add('btn-success');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('btn-success'); }, 1500);
+    });
+}
+
 const STATUS_LABELS = {
     pending: 'Chờ xử lý', generating: 'Đang viết bài', images: 'Tìm ảnh',
     uploading: 'Upload ảnh', ready: 'Sẵn sàng', publishing: 'Đang đăng',
@@ -122,6 +137,12 @@ setInterval(async () => {
             cells[1].textContent = a.title || '(Chưa tạo)';
             cells[2].innerHTML = `<span class="badge badge-${a.status}"><span class="badge-dot"></span>${STATUS_LABELS[a.status] || a.status}</span>`;
             cells[3].textContent = a.word_count;
+            // Update caption column
+            if (a.caption) {
+                cells[5].innerHTML = `<button class="btn btn-sm btn-copy-caption" onclick="copyCaption(this, \`${a.caption.replace(/`/g,'\\`')}\`)" title="Copy caption">📋 Copy</button>`;
+            } else {
+                cells[5].innerHTML = '';
+            }
             // Update actions column
             let actions = '';
             if (a.status === 'published' && a.wp_post_url) {
@@ -130,7 +151,7 @@ setInterval(async () => {
                 actions += `<a href="/preview/${a.id}" class="btn btn-sm">Xem</a>`;
             }
             actions += `<form method="post" action="/article/${a.id}/delete" class="inline-form" onsubmit="return confirm('Xóa bài viết này?')"><button type="submit" class="btn btn-sm btn-danger">Xóa</button></form>`;
-            cells[5].innerHTML = actions;
+            cells[6].innerHTML = actions;
         });
     } catch (e) {}
 }, 3000);

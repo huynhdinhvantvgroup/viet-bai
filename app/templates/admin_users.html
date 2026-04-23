@@ -48,6 +48,8 @@
                 <th>ID</th>
                 <th>Tên đăng nhập</th>
                 <th>Vai trò</th>
+                <th>Post/Day</th>
+                <th>Post/Month</th>
                 <th>WordPress</th>
                 <th>Ngày tạo</th>
                 <th>Thao tác</th>
@@ -70,6 +72,8 @@
                     <span class="badge badge-published">Admin (bạn)</span>
                     {% endif %}
                 </td>
+                <td style="text-align:center;font-weight:600">{{ user_stats[u.id].posts_day }}</td>
+                <td style="text-align:center;font-weight:600">{{ user_stats[u.id].posts_month }}</td>
                 <td style="font-size:12px;color:var(--text-secondary)">{{ u.wp_url or '(Chưa cấu hình)' }}</td>
                 <td>{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '' }}</td>
                 <td class="actions-cell">

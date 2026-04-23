@@ -8,7 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o-mini")
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-5.4-mini")
+
+# Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # Pexels
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
