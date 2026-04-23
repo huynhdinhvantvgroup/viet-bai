@@ -60,7 +60,7 @@ def _get_user(request: Request, db: Session) -> User:
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": ""})
+    return templates.TemplateResponse(request, "login.html", {"error": ""})
 
 
 @app.post("/login")
@@ -72,8 +72,8 @@ async def login_submit(
 ):
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.password_hash):
-        return templates.TemplateResponse("login.html", {
-            "request": request, "error": "Sai tên đăng nhập hoặc mật khẩu"
+        return templates.TemplateResponse(request, "login.html", {
+            "error": "Sai tên đăng nhập hoặc mật khẩu"
         })
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(COOKIE_NAME, create_session_cookie(user.id), httponly=True, max_age=86400 * 30)
@@ -110,8 +110,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
     recent = base.order_by(Article.created_at.desc()).limit(30).all()
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "published_today": published_today,
         "failed_today": failed_today,
@@ -130,8 +129,7 @@ async def queue_page(request: Request, db: Session = Depends(get_db)):
         Article.user_id == user.id, Article.status == "queued"
     ).order_by(Article.id.asc()).all()
 
-    return templates.TemplateResponse("queue.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "queue.html", {
         "user": user,
         "queued_articles": queued_articles,
     })
@@ -142,7 +140,7 @@ async def queue_page(request: Request, db: Session = Depends(get_db)):
 @app.get("/create", response_class=HTMLResponse)
 async def create_form(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    return templates.TemplateResponse("create.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "create.html", {"user": user})
 
 
 @app.post("/create")
@@ -197,8 +195,7 @@ async def preview(request: Request, article_id: int, db: Session = Depends(get_d
     except Exception:
         pass
 
-    return templates.TemplateResponse("preview.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "preview.html", {
         "user": user,
         "article": article,
         "stock_urls": stock_urls,
@@ -331,8 +328,7 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
     default_prompt = PROMPT_FILE.read_text(encoding="utf-8") if PROMPT_FILE.exists() else ""
     env = _read_env() if user.role == "admin" else {}
 
-    return templates.TemplateResponse("settings.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "settings.html", {
         "user": user,
         "env": env,
         "default_prompt": default_prompt,
@@ -423,8 +419,7 @@ async def admin_users(request: Request, db: Session = Depends(get_db)):
     if user.role != "admin":
         return RedirectResponse(url="/")
     users = db.query(User).order_by(User.id.asc()).all()
-    return templates.TemplateResponse("admin_users.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin_users.html", {
         "user": user,
         "users": users,
     })
