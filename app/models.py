@@ -62,6 +62,24 @@ class Article(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # Auto-add missing columns to existing tables
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    for table_name, model in [("articles", Article), ("users", User)]:
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            existing = {row[1] for row in cursor.fetchall()}
+            for col in model.__table__.columns:
+                if col.name not in existing:
+                    col_type = str(col.type)
+                    default = f"DEFAULT ''" if col_type in ("TEXT", "VARCHAR") else "DEFAULT NULL"
+                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type} {default}")
+        except Exception:
+            pass
+    conn.commit()
+    conn.close()
 
 
 def get_db():
