@@ -243,6 +243,19 @@ async def delete_article(request: Request, article_id: int, db: Session = Depend
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.get("/article/{article_id}/download-image")
+async def download_featured_image(request: Request, article_id: int, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    user = _get_user(request, db)
+    article = db.query(Article).filter(Article.id == article_id, Article.user_id == user.id).first()
+    if not article or not article.featured_image_path:
+        return RedirectResponse(url="/")
+    file_path = Path(article.featured_image_path)
+    if not file_path.exists():
+        return JSONResponse({"error": "File không tồn tại"}, status_code=404)
+    return FileResponse(file_path, filename=f"featured-{article_id}{file_path.suffix}", media_type="application/octet-stream")
+
+
 # ─── API: Realtime Article Status ────────────────────────
 
 @app.get("/api/articles-status")
@@ -282,6 +295,7 @@ async def articles_status(request: Request, db: Session = Depends(get_db)):
             "wp_post_url": a.wp_post_url or "",
             "error_message": a.error_message or "",
             "caption": a.caption or "",
+            "has_featured_image": bool(a.featured_image_path),
             "created_at": _to_vn(a.created_at),
         }
 

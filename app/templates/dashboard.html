@@ -73,10 +73,13 @@
                 <td>{{ a.created_at|vn_time }}</td>
                 <td class="caption-cell">
                     {% if a.caption %}
-                    <button class="btn btn-sm btn-copy-caption" onclick="copyCaption(this, `{{ a.caption|e }}`)" title="Copy caption">📋 Copy</button>
+                    <button class="btn btn-sm btn-copy-caption" data-caption="{{ a.caption|e }}" title="Copy caption">📋 Copy</button>
                     {% endif %}
                 </td>
                 <td class="actions-cell">
+                    {% if a.featured_image_path %}
+                        <a href="/article/{{ a.id }}/download-image" class="btn btn-sm" title="Tải ảnh gốc">📥</a>
+                    {% endif %}
                     {% if a.status in ('ready', 'failed') %}
                         <a href="/preview/{{ a.id }}" class="btn btn-sm">Xem</a>
                     {% elif a.status == 'published' %}
@@ -102,14 +105,16 @@
 
 {% block scripts %}
 <script>
-function copyCaption(btn, text) {
-    navigator.clipboard.writeText(text).then(() => {
-        const orig = btn.textContent;
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-copy-caption');
+    if (!btn || btn.dataset.copying) return;
+    btn.dataset.copying = '1';
+    navigator.clipboard.writeText(btn.dataset.caption).then(() => {
         btn.textContent = '✓ Copied';
         btn.classList.add('btn-success');
-        setTimeout(() => { btn.textContent = orig; btn.classList.remove('btn-success'); }, 1500);
-    });
-}
+        setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('btn-success'); delete btn.dataset.copying; }, 1500);
+    }).catch(() => { delete btn.dataset.copying; });
+});
 
 const STATUS_LABELS = {
     pending: 'Chờ xử lý', generating: 'Đang viết bài', images: 'Tìm ảnh',
@@ -139,12 +144,26 @@ setInterval(async () => {
             cells[3].textContent = a.word_count;
             // Update caption column
             if (a.caption) {
-                cells[5].innerHTML = `<button class="btn btn-sm btn-copy-caption" onclick="copyCaption(this, \`${a.caption.replace(/`/g,'\\`')}\`)" title="Copy caption">📋 Copy</button>`;
+                const existBtn = cells[5].querySelector('.btn-copy-caption');
+                if (existBtn) {
+                    existBtn.dataset.caption = a.caption;
+                } else {
+                    const b = document.createElement('button');
+                    b.className = 'btn btn-sm btn-copy-caption';
+                    b.dataset.caption = a.caption;
+                    b.title = 'Copy caption';
+                    b.textContent = '📋 Copy';
+                    cells[5].innerHTML = '';
+                    cells[5].appendChild(b);
+                }
             } else {
                 cells[5].innerHTML = '';
             }
             // Update actions column
             let actions = '';
+            if (a.has_featured_image) {
+                actions += `<a href="/article/${a.id}/download-image" class="btn btn-sm" title="Tải ảnh gốc">📥</a>`;
+            }
             if (a.status === 'published' && a.wp_post_url) {
                 actions += `<a href="${a.wp_post_url}" target="_blank" class="btn btn-sm btn-success">Mở bài</a>`;
             } else if (a.status === 'ready' || a.status === 'failed') {
