@@ -206,7 +206,8 @@ body {
     white-space: nowrap;
     font-weight: 500;
 }
-.actions-cell { display: flex; gap: 6px; align-items: center; }
+.caption-cell { width: 90px; text-align: center; }
+.actions-cell { display: flex; gap: 6px; align-items: center; white-space: nowrap; min-width: 180px; }
 .inline-form { display: inline; }
 
 /* ─── Badges ─── */
