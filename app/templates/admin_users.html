@@ -4,34 +4,34 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Quản lý tài khoản</h1>
-    <p>Thêm, xóa, phân quyền thành viên</p>
+    <h1>Quan ly tai khoan</h1>
+    <p>Them, xoa, phan quyen thanh vien</p>
 </div>
 
 <!-- Add user form -->
 <div class="form-card" style="margin-bottom:20px">
-    <h3 style="font-size:14px;margin-bottom:16px">Thêm tài khoản mới</h3>
+    <h3 style="font-size:14px;margin-bottom:16px">Them tai khoan moi</h3>
     <form method="post" action="/admin/users/add">
         <div class="form-row">
             <div class="form-group half">
-                <label>Tên đăng nhập</label>
+                <label>Ten dang nhap</label>
                 <input type="text" name="username" required placeholder="username">
             </div>
             <div class="form-group half">
-                <label>Mật khẩu</label>
+                <label>Mat khau</label>
                 <input type="text" name="password" required placeholder="password">
             </div>
         </div>
         <div class="form-row" style="align-items:end">
             <div class="form-group half">
-                <label>Vai trò</label>
+                <label>Vai tro</label>
                 <select name="role" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-input);color:var(--text-primary)">
-                    <option value="user">User</option>
+                    <option value="user">Creator</option>
                     <option value="admin">Admin</option>
                 </select>
             </div>
             <div class="form-group half">
-                <button type="submit" class="btn btn-primary">Thêm tài khoản</button>
+                <button type="submit" class="btn btn-primary">Them tai khoan</button>
             </div>
         </div>
     </form>
@@ -40,54 +40,80 @@
 <!-- User list -->
 <div class="table-container">
     <div class="table-header">
-        <h2>Danh sách tài khoản</h2>
+        <h2>Danh sach tai khoan</h2>
     </div>
     <table class="article-table">
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Tên đăng nhập</th>
-                <th>Vai trò</th>
+                <th>Ten dang nhap</th>
+                <th>Vai tro</th>
                 <th>Post/Day</th>
                 <th>Post/Month</th>
                 <th>WordPress</th>
-                <th>Ngày tạo</th>
-                <th>Thao tác</th>
+                <th>Ngay tao</th>
+                <th>Thao tac</th>
             </tr>
         </thead>
         <tbody>
             {% for u in users %}
             <tr>
                 <td>#{{ u.id }}</td>
-                <td style="font-weight:600">{{ u.username }}</td>
+                <td>
+                    <form method="post" action="/admin/users/{{ u.id }}/update-info" class="inline-form" style="display:flex;gap:4px;align-items:center">
+                        <input type="text" name="username" value="{{ u.username }}"
+                            style="width:120px;padding:4px 8px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
+                        <input type="hidden" name="role" value="{{ u.role }}">
+                        <input type="hidden" name="subdomain" value="{{ u.subdomain or '' }}">
+                        <input type="hidden" name="monthly_kpi" value="{{ u.monthly_kpi or 0 }}">
+                        <button type="submit" class="btn btn-sm" style="padding:2px 6px;font-size:10px">Luu</button>
+                    </form>
+                </td>
                 <td>
                     {% if u.id != user.id %}
                     <form method="post" action="/admin/users/{{ u.id }}/role" class="inline-form">
                         <select name="role" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg-input);color:var(--text-primary);cursor:pointer">
-                            <option value="user" {% if u.role == 'user' %}selected{% endif %}>User</option>
+                            <option value="user" {% if u.role == 'user' %}selected{% endif %}>Creator</option>
                             <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
                     </form>
                     {% else %}
-                    <span class="badge badge-published">Admin (bạn)</span>
+                    <span class="badge badge-published">Admin (ban)</span>
                     {% endif %}
                 </td>
                 <td style="text-align:center;font-weight:600">{{ user_stats[u.id].posts_day }}</td>
                 <td style="text-align:center;font-weight:600">{{ user_stats[u.id].posts_month }}</td>
-                <td style="font-size:12px;color:var(--text-secondary)">{{ u.wp_url or '(Chưa cấu hình)' }}</td>
-                <td>{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '' }}</td>
+                <td style="font-size:12px;color:var(--text-secondary)">{{ u.wp_url or '(Chua cau hinh)' }}</td>
+                <td style="font-size:12px">{{ u.created_at|vn_time }}</td>
                 <td class="actions-cell">
                     {% if u.id != user.id %}
                     <form method="post" action="/admin/users/{{ u.id }}/reset-password" class="inline-form"
-                          onsubmit="var p=prompt('Nhập mật khẩu mới:');if(!p)return false;this.querySelector('[name=password]').value=p;">
+                          onsubmit="var p=prompt('Nhap mat khau moi:');if(!p)return false;this.querySelector('[name=password]').value=p;">
                         <input type="hidden" name="password" value="">
-                        <button type="submit" class="btn btn-sm btn-warning">Đổi MK</button>
+                        <button type="submit" class="btn btn-sm btn-warning">Doi MK</button>
                     </form>
                     <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline-form"
-                          onsubmit="return confirm('Xóa tài khoản {{ u.username }}?')">
-                        <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                          onsubmit="return confirm('Xoa tai khoan {{ u.username }}?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Xoa</button>
                     </form>
                     {% endif %}
+                </td>
+            </tr>
+            <!-- Row 2: Subdomain + KPI -->
+            <tr style="border-bottom:2px solid var(--border)">
+                <td></td>
+                <td colspan="7" style="padding-top:0;padding-bottom:12px">
+                    <form method="post" action="/admin/users/{{ u.id }}/update-info" class="inline-form" style="display:flex;gap:10px;align-items:center">
+                        <input type="hidden" name="username" value="{{ u.username }}">
+                        <input type="hidden" name="role" value="{{ u.role }}">
+                        <span style="font-size:11px;color:var(--text-muted)">Subdomain:</span>
+                        <input type="text" name="subdomain" value="{{ u.subdomain or '' }}" placeholder="subdomain..."
+                            style="width:220px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
+                        <span style="font-size:11px;color:var(--text-muted)">KPI $</span>
+                        <input type="number" name="monthly_kpi" value="{{ u.monthly_kpi or 0 }}" step="1" min="0"
+                            style="width:80px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
+                        <button type="submit" class="btn btn-sm" style="padding:2px 8px;font-size:10px">Luu</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}

@@ -13,6 +13,10 @@ GPT_MODEL = os.getenv("GPT_MODEL", "gpt-5.4-mini")
 # Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# Google AdSense OAuth
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
 # Pexels
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 

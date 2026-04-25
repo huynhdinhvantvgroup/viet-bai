@@ -102,6 +102,22 @@
             <small>Đăng ký miễn phí tại pexels.com/api</small>
         </div>
         <div class="form-group">
+            <label>Google Client ID (AdSense)</label>
+            <div class="input-with-toggle">
+                <input type="password" id="google_client_id" value="{{ env.get('GOOGLE_CLIENT_ID', '') }}" placeholder="xxxx.apps.googleusercontent.com">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('google_client_id', this)">Hiện</button>
+            </div>
+            <small>Tạo tại console.cloud.google.com → Credentials</small>
+        </div>
+        <div class="form-group">
+            <label>Google Client Secret (AdSense)</label>
+            <div class="input-with-toggle">
+                <input type="password" id="google_client_secret" value="{{ env.get('GOOGLE_CLIENT_SECRET', '') }}" placeholder="GOCSPX-...">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('google_client_secret', this)">Hiện</button>
+            </div>
+            <small>Cùng trang với Client ID</small>
+        </div>
+        <div class="form-group">
             <label>Model viết bài</label>
             <select id="gpt_model" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-input);color:var(--text-primary)">
                 <optgroup label="── OpenAI GPT-5.4 (mới nhất) ──">
@@ -191,6 +207,10 @@ async function saveSettings() {
     if (gptModel) data.gpt_model = gptModel.value;
     const pexelsKey = document.getElementById('pexels_key');
     if (pexelsKey) data.pexels_key = pexelsKey.value;
+    const googleClientId = document.getElementById('google_client_id');
+    if (googleClientId) data.google_client_id = googleClientId.value;
+    const googleClientSecret = document.getElementById('google_client_secret');
+    if (googleClientSecret) data.google_client_secret = googleClientSecret.value;
     const defaultPrompt = document.getElementById('default_prompt');
     if (defaultPrompt) data.default_prompt = defaultPrompt.value;
 

@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.config import UPLOAD_DIR
-from app.models import init_db, get_db, Article, User, SessionLocal
+from app.models import init_db, get_db, Article, User, AdsenseToken, SessionLocal
 from app.auth import (
     hash_password, verify_password,
     create_session_cookie, get_current_user,
@@ -25,13 +25,30 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), na
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
-# Jinja2 filter: UTC → GMT+7
-from datetime import timedelta, timezone as tz
-_tz7 = tz(timedelta(hours=7))
+# ─── Timezone & Helpers ──────────────────────────────────
+import logging
+from datetime import datetime, timedelta, timezone
+
+TZ_VN = timezone(timedelta(hours=7))
+TZ_UTC = timezone.utc
+
+logger = logging.getLogger("health-writer")
+
 def _to_vn(dt, fmt="%H:%M %d/%m"):
     if not dt:
         return ""
-    return dt.replace(tzinfo=tz.utc).astimezone(_tz7).strftime(fmt) if dt.tzinfo is None else dt.astimezone(_tz7).strftime(fmt)
+    return dt.replace(tzinfo=TZ_UTC).astimezone(TZ_VN).strftime(fmt) if dt.tzinfo is None else dt.astimezone(TZ_VN).strftime(fmt)
+
+def _today_start():
+    """Return start of today (00:00) in UTC."""
+    now = datetime.now(TZ_VN)
+    return now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(TZ_UTC)
+
+def _month_start():
+    """Return start of this month (day 1, 00:00) in UTC."""
+    now = datetime.now(TZ_VN)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(TZ_UTC)
+
 templates.env.filters["vn_time"] = _to_vn
 
 # Auth middleware — must be added before routes
@@ -101,18 +118,15 @@ async def logout():
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    from datetime import datetime, timezone, timedelta
-    tz7 = timezone(timedelta(hours=7))
-    now = datetime.now(tz7)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    today_s = _today_start()
 
     base = db.query(Article).filter(Article.user_id == user.id)
 
     published_today = base.filter(
-        Article.status == "published", Article.published_at >= today_start
+        Article.status == "published", Article.published_at >= today_s
     ).count()
     failed_today = base.filter(
-        Article.status == "failed", Article.created_at >= today_start
+        Article.status == "failed", Article.created_at >= today_s
     ).count()
     processing = base.filter(
         Article.status.in_(["pending", "generating", "images", "uploading", "publishing"])
@@ -261,18 +275,15 @@ async def download_featured_image(request: Request, article_id: int, db: Session
 @app.get("/api/articles-status")
 async def articles_status(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    from datetime import datetime, timezone, timedelta
-    tz7 = timezone(timedelta(hours=7))
-    now = datetime.now(tz7)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    today_s = _today_start()
 
     base = db.query(Article).filter(Article.user_id == user.id)
 
     published_today = base.filter(
-        Article.status == "published", Article.published_at >= today_start
+        Article.status == "published", Article.published_at >= today_s
     ).count()
     failed_today = base.filter(
-        Article.status == "failed", Article.created_at >= today_start
+        Article.status == "failed", Article.created_at >= today_s
     ).count()
     total_all = base.filter(Article.status == "published").count()
 
@@ -388,6 +399,8 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             "gemini_key": "GEMINI_API_KEY",
             "gpt_model": "GPT_MODEL",
             "pexels_key": "PEXELS_API_KEY",
+            "google_client_id": "GOOGLE_CLIENT_ID",
+            "google_client_secret": "GOOGLE_CLIENT_SECRET",
         }
         changed = False
         for field, env_key in admin_fields.items():
@@ -406,6 +419,8 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             cfg.GEMINI_API_KEY = env.get("GEMINI_API_KEY", "")
             cfg.GPT_MODEL = env.get("GPT_MODEL", "gpt-5.4-mini")
             cfg.PEXELS_API_KEY = env.get("PEXELS_API_KEY", "")
+            cfg.GOOGLE_CLIENT_ID = env.get("GOOGLE_CLIENT_ID", "")
+            cfg.GOOGLE_CLIENT_SECRET = env.get("GOOGLE_CLIENT_SECRET", "")
 
             from app.services import gpt_generator, image_search
             gpt_generator.client = gpt_generator.AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
@@ -451,21 +466,18 @@ async def admin_users(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/")
     users = db.query(User).order_by(User.id.asc()).all()
 
-    from datetime import datetime, timezone, timedelta
-    tz7 = timezone(timedelta(hours=7))
-    now = datetime.now(tz7)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    today_s = _today_start()
+    month_s = _month_start()
 
     user_stats = {}
     for u in users:
         posts_day = db.query(Article).filter(
             Article.user_id == u.id, Article.status == "published",
-            Article.published_at >= today_start,
+            Article.published_at >= today_s,
         ).count()
         posts_month = db.query(Article).filter(
             Article.user_id == u.id, Article.status == "published",
-            Article.published_at >= month_start,
+            Article.published_at >= month_s,
         ).count()
         user_stats[u.id] = {"posts_day": posts_day, "posts_month": posts_month}
 
@@ -536,3 +548,236 @@ async def admin_reset_password(request: Request, uid: int, password: str = Form(
         target.password_hash = hash_password(password.strip())
         db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.post("/admin/users/{uid}/update-info")
+async def admin_update_user_info(
+    request: Request, uid: int,
+    username: str = Form(""),
+    role: str = Form(""),
+    subdomain: str = Form(""),
+    monthly_kpi: float = Form(0),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/admin/users", status_code=303)
+    target = db.query(User).get(uid)
+    if target:
+        new_name = username.strip()
+        if new_name and new_name != target.username:
+            dup = db.query(User).filter(User.username == new_name, User.id != uid).first()
+            if not dup:
+                target.username = new_name
+        if role in ("user", "admin") and target.id != user.id:
+            target.role = role
+        target.subdomain = subdomain.strip()
+        target.monthly_kpi = monthly_kpi
+        db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+# ─── AdSense OAuth + Report (Admin only) ────────────────
+
+@app.get("/adsense", response_class=HTMLResponse)
+async def adsense_page(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/")
+    import app.config as cfg
+    tokens = db.query(AdsenseToken).all()
+    has_credentials = bool(cfg.GOOGLE_CLIENT_ID and cfg.GOOGLE_CLIENT_SECRET)
+    return templates.TemplateResponse(request, "adsense.html", {
+        "user": user,
+        "tokens": tokens,
+        "has_credentials": has_credentials,
+    })
+
+
+@app.get("/adsense/connect")
+async def adsense_connect(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/")
+    import app.config as cfg
+    if not cfg.GOOGLE_CLIENT_ID or not cfg.GOOGLE_CLIENT_SECRET:
+        return RedirectResponse(url="/adsense")
+    from app.services.adsense_service import GOOGLE_AUTH_URL, SCOPES
+    redirect_uri = str(request.url_for("adsense_callback"))
+    params = (
+        f"client_id={cfg.GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={SCOPES}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+    )
+    return RedirectResponse(url=f"{GOOGLE_AUTH_URL}?{params}")
+
+
+@app.get("/adsense/callback")
+async def adsense_callback(request: Request, code: str = "", error: str = "", db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/")
+    if error or not code:
+        return RedirectResponse(url="/adsense")
+    import app.config as cfg
+    from app.services.adsense_service import exchange_code, get_adsense_account
+    redirect_uri = str(request.url_for("adsense_callback"))
+    try:
+        token_data = await exchange_code(code, cfg.GOOGLE_CLIENT_ID, cfg.GOOGLE_CLIENT_SECRET, redirect_uri)
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token", "")
+        expires_in = token_data.get("expires_in", 3600)
+        account = await get_adsense_account(access_token)
+        account_id = account.get("name", "")
+        account_name = account.get("displayName", account_id)
+        existing = db.query(AdsenseToken).filter(AdsenseToken.account_id == account_id).first()
+        if existing:
+            existing.access_token = access_token
+            existing.refresh_token = refresh_token or existing.refresh_token
+            existing.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            existing.account_name = account_name
+        else:
+            new_token = AdsenseToken(
+                account_name=account_name,
+                account_id=account_id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=datetime.utcnow() + timedelta(seconds=expires_in),
+            )
+            db.add(new_token)
+        db.commit()
+    except Exception:
+        pass
+    return RedirectResponse(url="/adsense")
+
+
+@app.post("/adsense/disconnect/{token_id}")
+async def adsense_disconnect(request: Request, token_id: int, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/adsense", status_code=303)
+    token = db.query(AdsenseToken).get(token_id)
+    if token:
+        db.delete(token)
+        db.commit()
+    return RedirectResponse(url="/adsense", status_code=303)
+
+
+@app.post("/api/adsense-nickname")
+async def adsense_nickname(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return JSONResponse({"ok": False}, status_code=403)
+    data = await request.json()
+    token = db.query(AdsenseToken).get(data.get("token_id"))
+    if token:
+        token.nickname = data.get("nickname", "")
+        db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/adsense-report")
+async def adsense_report_api(request: Request, period: str = "7d", db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    # Non-admin can only see their own subdomain
+    if user.role != "admin" and not user.subdomain:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    import app.config as cfg
+    from app.services.adsense_service import refresh_access_token, get_report
+    from datetime import timezone
+    tz7 = timezone(timedelta(hours=7))
+    today = datetime.now(tz7).date()
+    if period == "today":
+        start = today
+    elif period == "30d":
+        start = today - timedelta(days=30)
+    elif period == "month":
+        start = today.replace(day=1)
+    else:
+        start = today - timedelta(days=7)
+    end = today
+
+    tokens = db.query(AdsenseToken).all()
+    if not tokens:
+        return JSONResponse({"rows": [], "total": 0, "users": {}})
+
+    all_rows = []
+    for tk in tokens:
+        try:
+            # Refresh token if expired (compare as naive UTC)
+            exp = tk.expires_at.replace(tzinfo=None) if tk.expires_at and tk.expires_at.tzinfo else tk.expires_at
+            now_utc = datetime.utcnow()
+            if not exp or exp < now_utc:
+                new_data = await refresh_access_token(tk.refresh_token, cfg.GOOGLE_CLIENT_ID, cfg.GOOGLE_CLIENT_SECRET)
+                tk.access_token = new_data["access_token"]
+                tk.expires_at = now_utc + timedelta(seconds=new_data.get("expires_in", 3600))
+                db.commit()
+            rows, _ = await get_report(tk.access_token, tk.account_id, str(start), str(end))
+            all_rows.extend(rows)
+        except Exception as e:
+            logger.exception("AdSense report error for token %s", tk.id)
+            continue
+
+    # Merge duplicates by domain
+    merged = {}
+    for r in all_rows:
+        d = r.get("domain", "")
+        if d in merged:
+            merged[d]["earnings"] += r.get("earnings", 0)
+            merged[d]["clicks"] += r.get("clicks", 0)
+            merged[d]["impressions"] += r.get("impressions", 0)
+            merged[d]["pageviews"] += r.get("pageviews", 0)
+        else:
+            merged[d] = {
+                "domain": d,
+                "earnings": r.get("earnings", 0),
+                "clicks": r.get("clicks", 0),
+                "impressions": r.get("impressions", 0),
+                "pageviews": r.get("pageviews", 0),
+            }
+
+    rows_list = sorted(merged.values(), key=lambda x: x["earnings"], reverse=True)
+    # Non-admin: filter to only their subdomain
+    if user.role != "admin":
+        rows_list = [r for r in rows_list if r["domain"] == user.subdomain]
+    total = sum(r["earnings"] for r in rows_list)
+
+    # Map subdomain → user
+    users = db.query(User).filter(User.subdomain != "").all()
+    user_map = {}
+    for u in users:
+        user_map[u.subdomain] = {"username": u.username, "kpi": u.monthly_kpi}
+
+    return JSONResponse({
+        "rows": rows_list,
+        "total": round(total, 2),
+        "users": user_map,
+        "period": period,
+    })
+
+
+# ─── Employee Profile ──────────────────────────────────
+
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    from datetime import datetime, timezone, timedelta
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    base = db.query(Article).filter(Article.user_id == user.id, Article.status == "published")
+    posts_today = base.filter(Article.published_at >= today_start).count()
+    posts_month = base.filter(Article.published_at >= month_start).count()
+    posts_total = base.count()
+
+    return templates.TemplateResponse(request, "profile.html", {
+        "user": user,
+        "posts_today": posts_today,
+        "posts_month": posts_month,
+        "posts_total": posts_total,
+    })

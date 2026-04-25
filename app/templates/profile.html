@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% set active = "profile" %}
+{% block title %}{{ user.username }} - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ user.username }}</h1>
+    <p>Thong tin ca nhan & KPI</p>
+</div>
+
+{% if user.subdomain %}
+<!-- AdSense Stats -->
+<div class="stats-grid" style="margin-top:20px">
+    <div class="stat-card">
+        <div class="stat-icon icon-published">$</div>
+        <div class="stat-number" id="my-earnings">--</div>
+        <div class="stat-label">Moc hieu suat</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-pending">&#9776;</div>
+        <div class="stat-number" id="my-rpm">--</div>
+        <div class="stat-label">RPM</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-total">&#128065;</div>
+        <div class="stat-number" id="my-pageviews">--</div>
+        <div class="stat-label">Page Views</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- KPI Progress -->
+{% if (user.monthly_kpi or 0) > 0 %}
+<div class="form-card" style="margin-top:20px">
+    <h3 style="font-size:14px;margin-bottom:16px">KPI thang nay</h3>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;color:var(--text-secondary)">Muc tieu: <strong>${{ '%.0f'|format(user.monthly_kpi) }}</strong></span>
+        <span style="font-size:13px;color:var(--text-secondary)" id="kpi-achieved">Dang tai...</span>
+    </div>
+    <div style="background:var(--bg-secondary);border-radius:8px;height:24px;overflow:hidden">
+        <div id="kpi-bar" style="height:100%;border-radius:8px;transition:width 0.5s;width:0%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:8px" id="kpi-note"></p>
+</div>
+{% elif user.subdomain %}
+<div class="form-card" style="margin-top:20px">
+    <p style="font-size:13px;color:var(--text-muted)">Admin chua gan KPI cho ban.</p>
+</div>
+{% endif %}
+
+<!-- Info -->
+<div class="form-card" style="margin-top:20px">
+    <h3 style="font-size:14px;margin-bottom:16px">Thong tin</h3>
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px">
+        <span style="color:var(--text-muted)">Tai khoan:</span>
+        <span style="font-weight:600">{{ user.username }}</span>
+        <span style="color:var(--text-muted)">Vai tro:</span>
+        <span>{{ 'Admin' if user.role == 'admin' else 'Creator' }}</span>
+        {% if user.subdomain %}
+        <span style="color:var(--text-muted)">Subdomain:</span>
+        <span>{{ user.subdomain }}</span>
+        {% endif %}
+        <span style="color:var(--text-muted)">Ngay tao:</span>
+        <span>{{ user.created_at|vn_time }}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if user.subdomain %}
+<script>
+async function loadMyStats() {
+    try {
+        const resp = await fetch('/api/adsense-report?period=month');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const myDomain = '{{ user.subdomain }}';
+        const myRow = data.rows.find(r => r.domain === myDomain);
+        const earned = myRow ? myRow.earnings : 0;
+        const pv = myRow ? (myRow.pageviews || 0) : 0;
+        const rpm = pv > 0 ? (earned / pv * 1000) : 0;
+
+        document.getElementById('my-earnings').textContent = `$${earned.toFixed(2)}`;
+        document.getElementById('my-rpm').textContent = `$${rpm.toFixed(2)}`;
+        document.getElementById('my-pageviews').textContent = pv.toLocaleString();
+
+        {% if (user.monthly_kpi or 0) > 0 %}
+        const kpi = {{ user.monthly_kpi }};
+        const pct = Math.min(100, (earned / kpi * 100));
+        document.getElementById('kpi-achieved').textContent = `Dat: $${earned.toFixed(2)} (${pct.toFixed(0)}%)`;
+        document.getElementById('kpi-bar').style.width = pct + '%';
+        if (pct >= 100) {
+            document.getElementById('kpi-bar').style.background = 'linear-gradient(90deg,#4ade80,#22c55e)';
+            document.getElementById('kpi-note').textContent = 'Da dat KPI thang nay!';
+        } else {
+            document.getElementById('kpi-note').textContent = `Con thieu: $${(kpi - earned).toFixed(2)}`;
+        }
+        {% endif %}
+    } catch(e) {
+        console.error(e);
+        {% if (user.monthly_kpi or 0) > 0 %}
+        document.getElementById('kpi-achieved').textContent = 'Khong the tai du lieu';
+        {% endif %}
+    }
+}
+loadMyStats();
+</script>
+{% endif %}
+{% endblock %}

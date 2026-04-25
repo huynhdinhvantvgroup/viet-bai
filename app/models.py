@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, Float, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from app.config import DATABASE_URL
 
@@ -21,6 +21,9 @@ class User(Base):
     wp_app_password = Column(String(200), default="")
     # Per-user prompt (NULL = use default prompt.txt)
     custom_prompt = Column(Text, nullable=True)
+    # AdSense / KPI
+    subdomain = Column(String(500), default="")
+    monthly_kpi = Column(Float, default=0)
     # Meta
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -60,6 +63,19 @@ class Article(Base):
     owner = relationship("User", back_populates="articles")
 
 
+class AdsenseToken(Base):
+    __tablename__ = "adsense_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    account_name = Column(String(200), default="")
+    nickname = Column(String(200), default="")
+    account_id = Column(String(200), default="")
+    access_token = Column(Text, default="")
+    refresh_token = Column(Text, default="")
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Auto-add missing columns to existing tables
@@ -67,7 +83,7 @@ def init_db():
     db_path = DATABASE_URL.replace("sqlite:///", "")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    for table_name, model in [("articles", Article), ("users", User)]:
+    for table_name, model in [("articles", Article), ("users", User), ("adsense_tokens", AdsenseToken)]:
         try:
             cursor.execute(f"PRAGMA table_info({table_name})")
             existing = {row[1] for row in cursor.fetchall()}
