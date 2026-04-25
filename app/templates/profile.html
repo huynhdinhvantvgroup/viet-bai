@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ user.username }}</h1>
-    <p>Thong tin ca nhan & KPI</p>
+    <p>Thông tin cá nhân & KPI</p>
 </div>
 
 {% if user.subdomain %}
@@ -14,7 +14,7 @@
     <div class="stat-card">
         <div class="stat-icon icon-published">$</div>
         <div class="stat-number" id="my-earnings">--</div>
-        <div class="stat-label">Moc hieu suat</div>
+        <div class="stat-label">Mốc hiệu suất</div>
     </div>
     <div class="stat-card">
         <div class="stat-icon icon-pending">&#9776;</div>
@@ -32,10 +32,10 @@
 <!-- KPI Progress -->
 {% if (user.monthly_kpi or 0) > 0 %}
 <div class="form-card" style="margin-top:20px">
-    <h3 style="font-size:14px;margin-bottom:16px">KPI thang nay</h3>
+    <h3 style="font-size:14px;margin-bottom:16px">KPI tháng này</h3>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:13px;color:var(--text-secondary)">Muc tieu: <strong>${{ '%.0f'|format(user.monthly_kpi) }}</strong></span>
-        <span style="font-size:13px;color:var(--text-secondary)" id="kpi-achieved">Dang tai...</span>
+        <span style="font-size:13px;color:var(--text-secondary)">Mục tiêu: <strong>${{ '%.0f'|format(user.monthly_kpi) }}</strong></span>
+        <span style="font-size:13px;color:var(--text-secondary)" id="kpi-achieved">Đang tải...</span>
     </div>
     <div style="background:var(--bg-secondary);border-radius:8px;height:24px;overflow:hidden">
         <div id="kpi-bar" style="height:100%;border-radius:8px;transition:width 0.5s;width:0%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
@@ -44,23 +44,23 @@
 </div>
 {% elif user.subdomain %}
 <div class="form-card" style="margin-top:20px">
-    <p style="font-size:13px;color:var(--text-muted)">Admin chua gan KPI cho ban.</p>
+    <p style="font-size:13px;color:var(--text-muted)">Admin chưa gán KPI cho bạn.</p>
 </div>
 {% endif %}
 
 <!-- Info -->
 <div class="form-card" style="margin-top:20px">
-    <h3 style="font-size:14px;margin-bottom:16px">Thong tin</h3>
+    <h3 style="font-size:14px;margin-bottom:16px">Thông tin</h3>
     <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px">
-        <span style="color:var(--text-muted)">Tai khoan:</span>
+        <span style="color:var(--text-muted)">Tài khoản:</span>
         <span style="font-weight:600">{{ user.username }}</span>
-        <span style="color:var(--text-muted)">Vai tro:</span>
+        <span style="color:var(--text-muted)">Vai trò:</span>
         <span>{{ 'Admin' if user.role == 'admin' else 'Creator' }}</span>
         {% if user.subdomain %}
         <span style="color:var(--text-muted)">Subdomain:</span>
         <span>{{ user.subdomain }}</span>
         {% endif %}
-        <span style="color:var(--text-muted)">Ngay tao:</span>
+        <span style="color:var(--text-muted)">Ngày tạo:</span>
         <span>{{ user.created_at|vn_time }}</span>
     </div>
 </div>
@@ -87,19 +87,19 @@ async function loadMyStats() {
         {% if (user.monthly_kpi or 0) > 0 %}
         const kpi = {{ user.monthly_kpi }};
         const pct = Math.min(100, (earned / kpi * 100));
-        document.getElementById('kpi-achieved').textContent = `Dat: $${earned.toFixed(2)} (${pct.toFixed(0)}%)`;
+        document.getElementById('kpi-achieved').textContent = `Đạt: $${earned.toFixed(2)} (${pct.toFixed(0)}%)`;
         document.getElementById('kpi-bar').style.width = pct + '%';
         if (pct >= 100) {
             document.getElementById('kpi-bar').style.background = 'linear-gradient(90deg,#4ade80,#22c55e)';
-            document.getElementById('kpi-note').textContent = 'Da dat KPI thang nay!';
+            document.getElementById('kpi-note').textContent = 'Đã đạt KPI tháng này!';
         } else {
-            document.getElementById('kpi-note').textContent = `Con thieu: $${(kpi - earned).toFixed(2)}`;
+            document.getElementById('kpi-note').textContent = `Còn thiếu: $${(kpi - earned).toFixed(2)}`;
         }
         {% endif %}
     } catch(e) {
         console.error(e);
         {% if (user.monthly_kpi or 0) > 0 %}
-        document.getElementById('kpi-achieved').textContent = 'Khong the tai du lieu';
+        document.getElementById('kpi-achieved').textContent = 'Không thể tải dữ liệu';
         {% endif %}
     }
 }

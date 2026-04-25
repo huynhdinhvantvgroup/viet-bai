@@ -5,14 +5,14 @@
 {% block content %}
 <div class="page-header">
     <h1>AdSense Revenue</h1>
-    <p>Doanh thu quang cao theo subdomain</p>
+    <p>Doanh thu quảng cáo theo subdomain</p>
 </div>
 
 {% if not has_credentials %}
 <div class="form-card" style="margin-bottom:20px">
-    <h3 style="font-size:14px;margin-bottom:8px">Chua cau hinh Google OAuth</h3>
+    <h3 style="font-size:14px;margin-bottom:8px">Chưa cấu hình Google OAuth</h3>
     <p style="font-size:13px;color:var(--text-secondary)">
-        Them <code>GOOGLE_CLIENT_ID</code> va <code>GOOGLE_CLIENT_SECRET</code> vao file <code>.env</code> de ket noi AdSense.
+        Thêm <code>GOOGLE_CLIENT_ID</code> và <code>GOOGLE_CLIENT_SECRET</code> vào file <code>.env</code> để kết nối AdSense.
     </p>
 </div>
 {% else %}
@@ -20,36 +20,36 @@
 <!-- Connected accounts -->
 <div class="form-card" style="margin-bottom:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h3 style="font-size:14px;margin:0">Tai khoan AdSense</h3>
-        <a href="/adsense/connect" class="btn btn-primary btn-sm">+ Ket noi tai khoan</a>
+        <h3 style="font-size:14px;margin:0">Tài khoản AdSense</h3>
+        <a href="/adsense/connect" class="btn btn-primary btn-sm">+ Kết nối tài khoản</a>
     </div>
     {% if tokens %}
     <div style="display:flex;flex-wrap:wrap;gap:12px">
         {% for tk in tokens %}
         <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border)">
             <span style="font-size:13px;color:var(--text-secondary);font-family:monospace;font-weight:500">{{ tk.account_id.replace('accounts/', '') }}</span>
-            <input type="text" value="{{ tk.nickname or '' }}" placeholder="Biet hieu..."
+            <input type="text" value="{{ tk.nickname or '' }}" placeholder="Biệt hiệu..."
                 id="nickname-{{ tk.id }}"
                 style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary);width:150px">
-            <button class="btn btn-sm" style="padding:4px 12px;font-size:12px" onclick="saveNickname({{ tk.id }})">Luu</button>
-            <form method="post" action="/adsense/disconnect/{{ tk.id }}" class="inline-form" onsubmit="return confirm('Ngat ket noi tai khoan nay?')">
-                <button type="submit" class="btn btn-sm btn-danger" style="padding:4px 12px;font-size:12px">Ngat</button>
+            <button class="btn btn-sm" style="padding:4px 12px;font-size:12px" onclick="saveNickname({{ tk.id }})">Lưu</button>
+            <form method="post" action="/adsense/disconnect/{{ tk.id }}" class="inline-form" onsubmit="return confirm('Ngắt kết nối tài khoản này?')">
+                <button type="submit" class="btn btn-sm btn-danger" style="padding:4px 12px;font-size:12px">Ngắt</button>
             </form>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <p style="font-size:13px;color:var(--text-muted)">Chua co tai khoan nao. Bam "Ket noi tai khoan" de bat dau.</p>
+    <p style="font-size:13px;color:var(--text-muted)">Chưa có tài khoản nào. Bấm "Kết nối tài khoản" để bắt đầu.</p>
     {% endif %}
 </div>
 
 {% if tokens %}
 <!-- Period filter -->
 <div style="display:flex;gap:8px;margin-bottom:20px">
-    <button class="btn btn-sm period-btn active" data-period="today">Hom nay</button>
-    <button class="btn btn-sm period-btn" data-period="7d">7 ngay</button>
-    <button class="btn btn-sm period-btn" data-period="30d">30 ngay</button>
-    <button class="btn btn-sm period-btn" data-period="month">Thang nay</button>
+    <button class="btn btn-sm period-btn active" data-period="today">Hôm nay</button>
+    <button class="btn btn-sm period-btn" data-period="7d">7 ngày</button>
+    <button class="btn btn-sm period-btn" data-period="30d">30 ngày</button>
+    <button class="btn btn-sm period-btn" data-period="month">Tháng này</button>
 </div>
 
 <!-- Stats cards -->
@@ -57,7 +57,7 @@
     <div class="stat-card">
         <div class="stat-icon icon-published">$</div>
         <div class="stat-number" id="total-earnings">--</div>
-        <div class="stat-label">Tong doanh thu</div>
+        <div class="stat-label">Tổng doanh thu</div>
     </div>
     <div class="stat-card">
         <div class="stat-icon icon-pending">&#9776;</div>
@@ -79,26 +79,26 @@
 <!-- Table -->
 <div style="margin-bottom:20px">
     <div class="table-container" style="margin:0">
-        <div class="table-header"><h2>KPI thang nay</h2></div>
+        <div class="table-header"><h2>KPI tháng này</h2></div>
         <table class="article-table">
             <thead>
                 <tr>
                     <th style="width:40px">#</th>
-                    <th>Nhan su</th>
+                    <th>Nhân sự</th>
                     <th style="text-align:right">Doanh thu</th>
                     <th style="text-align:right">RPM</th>
                     <th style="text-align:right">Page Views</th>
                     <th style="text-align:right">KPI</th>
-                    <th style="width:140px">Dat</th>
+                    <th style="width:140px">Đạt</th>
                 </tr>
             </thead>
             <tbody id="adsense-tbody">
-                <tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Dang tai...</td></tr>
+                <tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Đang tải...</td></tr>
             </tbody>
             <tfoot id="adsense-tfoot" style="display:none">
                 <tr style="border-top:2px solid var(--border);font-weight:700">
                     <td></td>
-                    <td>Tong</td>
+                    <td>Tổng</td>
                     <td style="text-align:right;color:#4ade80" id="foot-earnings"></td>
                     <td style="text-align:right" id="foot-rpm"></td>
                     <td style="text-align:right" id="foot-pv"></td>
@@ -176,7 +176,7 @@ async function loadKPITable() {
         const tbody = document.getElementById('adsense-tbody');
         const tfoot = document.getElementById('adsense-tfoot');
         if (data.rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Khong co du lieu</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Không có dữ liệu</td></tr>';
             tfoot.style.display = 'none';
         } else {
             tbody.innerHTML = data.rows.map((r, i) => {

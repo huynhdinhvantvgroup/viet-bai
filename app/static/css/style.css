@@ -206,9 +206,8 @@ body {
     white-space: nowrap;
     font-weight: 500;
 }
-.caption-cell { width: 80px; min-width: 80px; max-width: 80px; text-align: center; }
-.actions-cell { min-width: 160px; white-space: nowrap; }
-.actions-cell > *, .actions-cell .inline-form { display: inline-block; margin-right: 4px; vertical-align: middle; }
+.caption-cell { width: 90px; text-align: center; }
+.actions-cell { display: flex; gap: 6px; align-items: center; white-space: nowrap; min-width: 180px; }
 .inline-form { display: inline; }
 
 /* ─── Badges ─── */
@@ -263,7 +262,6 @@ body {
 .btn-success:hover { background: #16a34a; border-color: #16a34a; }
 .btn-warning { background: transparent; color: var(--warning); border-color: var(--warning); }
 .btn-warning:hover { background: var(--warning-bg); }
-.period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-danger { background: transparent; color: var(--danger); border-color: rgba(239,68,68,0.3); }
 .btn-danger:hover { background: var(--danger-bg); }
 .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
