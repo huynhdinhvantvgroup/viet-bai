@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+    <button class="hamburger" id="hamburger-btn" onclick="document.body.classList.toggle('sidebar-open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="sidebar-backdrop" onclick="document.body.classList.remove('sidebar-open')"></div>
     <nav class="sidebar">
         <a href="/" class="sidebar-brand">
             <div class="brand-logo">Tv</div>
