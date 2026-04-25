@@ -88,12 +88,12 @@
                 <td class="actions-cell">
                     {% if u.id != user.id %}
                     <form method="post" action="/admin/users/{{ u.id }}/reset-password" class="inline-form"
-                          onsubmit="var p=prompt('Nhập mật khẩu mới:');if(!p)return false;this.querySelector('[name=password]').value=p;">
+                          onsubmit="event.preventDefault();var f=this;showModal({title:'Đổi mật khẩu',msg:'Nhập mật khẩu mới cho {{ u.username }}:',inputMode:true,inputType:'text',placeholder:'Mật khẩu mới...',okText:'Lưu',onOk:function(v){if(v){f.querySelector('[name=password]').value=v;f.submit();}}})">
                         <input type="hidden" name="password" value="">
                         <button type="submit" class="btn btn-sm btn-warning">Đổi MK</button>
                     </form>
                     <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline-form"
-                          onsubmit="return confirm('Xóa tài khoản {{ u.username }}?')">
+                          onsubmit="event.preventDefault();var f=this;showModal({title:'Xóa tài khoản',msg:'Bạn có chắc muốn xóa tài khoản {{ u.username }}?',okText:'Xóa',okClass:'btn-danger',onOk:function(){f.submit();}})">
                         <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
                     </form>
                     {% endif %}

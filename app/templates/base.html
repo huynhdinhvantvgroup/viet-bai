@@ -67,6 +67,55 @@
     <main class="content">
         {% block content %}{% endblock %}
     </main>
+    <!-- Custom Modal -->
+    <div class="modal-overlay" id="custom-modal" style="display:none">
+        <div class="modal-box">
+            <h3 class="modal-title" id="modal-title"></h3>
+            <p class="modal-msg" id="modal-msg"></p>
+            <div class="modal-input-wrap" id="modal-input-wrap" style="display:none">
+                <input type="text" class="modal-input" id="modal-input" autocomplete="off">
+            </div>
+            <div class="modal-actions">
+                <button class="btn modal-btn-cancel" id="modal-cancel">Huỷ</button>
+                <button class="btn modal-btn-ok" id="modal-ok">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+    <script>
+    function showModal({title, msg, inputMode, inputType, placeholder, okText, okClass, onOk}) {
+        const overlay = document.getElementById('custom-modal');
+        document.getElementById('modal-title').textContent = title || 'Xác nhận';
+        document.getElementById('modal-msg').textContent = msg || '';
+        const inputWrap = document.getElementById('modal-input-wrap');
+        const input = document.getElementById('modal-input');
+        const okBtn = document.getElementById('modal-ok');
+        const cancelBtn = document.getElementById('modal-cancel');
+        if (inputMode) {
+            inputWrap.style.display = '';
+            input.type = inputType || 'text';
+            input.placeholder = placeholder || '';
+            input.value = '';
+        } else {
+            inputWrap.style.display = 'none';
+        }
+        okBtn.textContent = okText || 'Xác nhận';
+        okBtn.className = 'btn modal-btn-ok ' + (okClass || '');
+        overlay.style.display = 'flex';
+        setTimeout(() => input.focus(), 100);
+        function cleanup() {
+            overlay.style.display = 'none';
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
+            overlay.removeEventListener('click', handleOverlay);
+        }
+        function handleOk() { cleanup(); onOk(inputMode ? input.value : true); }
+        function handleCancel() { cleanup(); }
+        function handleOverlay(e) { if (e.target === overlay) cleanup(); }
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        overlay.addEventListener('click', handleOverlay);
+    }
+    </script>
     <script src="/static/js/app.js"></script>
     {% block scripts %}{% endblock %}
 </body>

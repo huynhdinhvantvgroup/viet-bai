@@ -32,7 +32,7 @@
                 id="nickname-{{ tk.id }}"
                 style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary);width:150px">
             <button class="btn btn-sm" style="padding:4px 12px;font-size:12px" onclick="saveNickname({{ tk.id }})">Lưu</button>
-            <form method="post" action="/adsense/disconnect/{{ tk.id }}" class="inline-form" onsubmit="return confirm('Ngắt kết nối tài khoản này?')">
+            <form method="post" action="/adsense/disconnect/{{ tk.id }}" class="inline-form" onsubmit="event.preventDefault();var f=this;showModal({title:'Ngắt kết nối',msg:'Bạn có chắc muốn ngắt kết nối tài khoản AdSense này?',okText:'Ngắt',okClass:'btn-danger',onOk:function(){f.submit();}})">
                 <button type="submit" class="btn btn-sm btn-danger" style="padding:4px 12px;font-size:12px">Ngắt</button>
             </form>
         </div>

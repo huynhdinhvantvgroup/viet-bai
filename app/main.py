@@ -320,6 +320,7 @@ async def articles_status(request: Request, db: Session = Depends(get_db)):
             "status": a.status,
             "word_count": a.word_count,
             "wp_post_url": a.wp_post_url or "",
+            "wp_post_id": a.wp_post_id,
             "error_message": a.error_message or "",
             "caption": a.caption or "",
             "has_featured_image": bool(a.featured_image_path),
