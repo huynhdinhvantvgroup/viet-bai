@@ -133,7 +133,19 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     ).count()
     total_all = base.filter(Article.status == "published").count()
 
-    recent = base.order_by(Article.created_at.desc()).limit(30).all()
+    per_page = 20
+    page = int(request.query_params.get("page", 1))
+    if page < 1:
+        page = 1
+    total_articles = base.count()
+    total_pages = max(1, (total_articles + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    recent = base.order_by(Article.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+
+    now = datetime.now(TZ_VN)
+    days_vi = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
+    now_vn = f"{days_vi[now.weekday()]}, {now.strftime('%d/%m/%Y')}"
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
@@ -142,6 +154,10 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         "processing_count": processing,
         "total_all": total_all,
         "recent": recent,
+        "page": page,
+        "total_pages": total_pages,
+        "total_articles": total_articles,
+        "now_vn": now_vn,
     })
 
 

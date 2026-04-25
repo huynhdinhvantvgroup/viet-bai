@@ -5,27 +5,35 @@
 {% block content %}
 <div class="page-header">
     <h1>Trang chủ</h1>
-    <p>Tổng quan hoạt động hôm nay</p>
+    <p>Tổng quan hoạt động &middot; {{ now_vn }}</p>
 </div>
 
 <div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon icon-published">&#10003;</div>
+    <div class="stat-card card-published">
+        <div class="stat-icon icon-published">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
         <div class="stat-number" id="stat-published">{{ published_today }}</div>
         <div class="stat-label">Đã đăng hôm nay</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon icon-pending">&#8987;</div>
+    <div class="stat-card card-pending">
+        <div class="stat-icon icon-pending">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
         <div class="stat-number" id="stat-processing">{{ processing_count }}</div>
         <div class="stat-label">Đang xử lý</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon icon-failed">&#10007;</div>
+    <div class="stat-card card-failed">
+        <div class="stat-icon icon-failed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
         <div class="stat-number" id="stat-failed">{{ failed_today }}</div>
         <div class="stat-label">Thất bại</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon icon-total">&#9733;</div>
+    <div class="stat-card card-total">
+        <div class="stat-icon icon-total">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
         <div class="stat-number" id="stat-total">{{ total_all }}</div>
         <div class="stat-label">Tổng đã đăng</div>
     </div>
@@ -51,7 +59,7 @@
         </thead>
         <tbody id="article-tbody">
             {% for a in recent %}
-            <tr data-id="{{ a.id }}">
+            <tr data-id="{{ a.id }}" data-status="{{ a.status }}">
                 <td>#{{ a.id }}</td>
                 <td class="title-cell">{{ a.title or "(Chưa tạo)" }}</td>
                 <td>
@@ -73,21 +81,31 @@
                 <td>{{ a.created_at|vn_time }}</td>
                 <td class="caption-cell">
                     {% if a.caption %}
-                    <button class="btn btn-sm btn-copy-caption" data-caption="{{ a.caption|e }}" title="Copy caption">📋 Copy</button>
+                    <button class="btn-icon icon-copy btn-copy-caption" data-caption="{{ a.caption|e }}" title="Copy caption">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
                     {% endif %}
                 </td>
                 <td class="actions-cell">
                     {% if a.featured_image_path %}
-                        <a href="/article/{{ a.id }}/download-image" class="btn btn-sm" title="Tải ảnh gốc">📥</a>
+                        <a href="/article/{{ a.id }}/download-image" class="btn-icon icon-download" title="Tải ảnh gốc">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
                     {% endif %}
                     {% if a.status in ('ready', 'failed') %}
-                        <a href="/preview/{{ a.id }}" class="btn btn-sm">Xem</a>
+                        <a href="/preview/{{ a.id }}" class="btn-icon icon-view" title="Xem bài">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </a>
                     {% elif a.status == 'published' %}
-                        <a href="{{ a.wp_post_url }}" target="_blank" class="btn btn-sm btn-success">Mở bài</a>
+                        <a href="{{ a.wp_post_url }}" target="_blank" class="btn-icon icon-open" title="Mở bài viết">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        </a>
                     {% endif %}
                     <form method="post" action="/article/{{ a.id }}/delete" class="inline-form"
                           onsubmit="return confirm('Xóa bài viết này?')">
-                        <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                        <button type="submit" class="btn-icon icon-delete" title="Xóa bài">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
                     </form>
                 </td>
             </tr>
@@ -96,8 +114,24 @@
     </table>
     {% else %}
     <div class="empty-state">
-        <div class="empty-state-icon">&#128196;</div>
+        <div class="empty-state-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7084" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
         <p>Chưa có bài viết nào. Bấm "Tạo mới" để bắt đầu.</p>
+    </div>
+    {% endif %}
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <span class="pagination-info">Trang {{ page }} / {{ total_pages }} ({{ total_articles }} bài)</span>
+        <div class="pagination-btns">
+            {% if page > 1 %}
+            <a href="/?page={{ page - 1 }}" class="btn btn-sm">&laquo; Trước</a>
+            {% endif %}
+            {% for p in range(1, total_pages + 1) %}
+            <a href="/?page={{ p }}" class="btn btn-sm {% if p == page %}btn-page-active{% endif %}">{{ p }}</a>
+            {% endfor %}
+            {% if page < total_pages %}
+            <a href="/?page={{ page + 1 }}" class="btn btn-sm">Sau &raquo;</a>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 </div>
@@ -105,14 +139,16 @@
 
 {% block scripts %}
 <script>
+const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.btn-copy-caption');
     if (!btn || btn.dataset.copying) return;
     btn.dataset.copying = '1';
     navigator.clipboard.writeText(btn.dataset.caption).then(() => {
-        btn.textContent = '✓ Copied';
-        btn.classList.add('btn-success');
-        setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('btn-success'); delete btn.dataset.copying; }, 1500);
+        btn.innerHTML = ICON_CHECK;
+        btn.classList.add('copied');
+        setTimeout(() => { btn.innerHTML = ICON_COPY; btn.classList.remove('copied'); delete btn.dataset.copying; }, 1500);
     }).catch(() => { delete btn.dataset.copying; });
 });
 
@@ -139,8 +175,8 @@ setInterval(async () => {
             const row = tbody.querySelector(`tr[data-id="${a.id}"]`);
             if (!row) return;
             const cells = row.querySelectorAll('td');
+            const oldStatus = row.dataset.status;
             cells[1].textContent = a.title || '(Chưa tạo)';
-            cells[2].innerHTML = `<span class="badge badge-${a.status}"><span class="badge-dot"></span>${STATUS_LABELS[a.status] || a.status}</span>`;
             cells[3].textContent = a.word_count;
             // Update caption column
             if (a.caption) {
@@ -148,29 +184,27 @@ setInterval(async () => {
                 if (existBtn) {
                     existBtn.dataset.caption = a.caption;
                 } else {
-                    const b = document.createElement('button');
-                    b.className = 'btn btn-sm btn-copy-caption';
-                    b.dataset.caption = a.caption;
-                    b.title = 'Copy caption';
-                    b.textContent = '📋 Copy';
-                    cells[5].innerHTML = '';
-                    cells[5].appendChild(b);
+                    cells[5].innerHTML = `<button class="btn-icon icon-copy btn-copy-caption" data-caption="${a.caption.replace(/"/g,'&quot;')}" title="Copy caption">${ICON_COPY}</button>`;
                 }
             } else {
                 cells[5].innerHTML = '';
             }
-            // Update actions column
-            let actions = '';
-            if (a.has_featured_image) {
-                actions += `<a href="/article/${a.id}/download-image" class="btn btn-sm" title="Tải ảnh gốc">📥</a>`;
+            // Only update status + actions when status changes
+            if (oldStatus !== a.status) {
+                row.dataset.status = a.status;
+                cells[2].innerHTML = `<span class="badge badge-${a.status}"><span class="badge-dot"></span>${STATUS_LABELS[a.status] || a.status}</span>`;
+                let actions = '';
+                if (a.has_featured_image) {
+                    actions += `<a href="/article/${a.id}/download-image" class="btn-icon icon-download" title="Tải ảnh gốc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>`;
+                }
+                if (a.status === 'published' && a.wp_post_url) {
+                    actions += `<a href="${a.wp_post_url}" target="_blank" class="btn-icon icon-open" title="Mở bài viết"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`;
+                } else if (a.status === 'ready' || a.status === 'failed') {
+                    actions += `<a href="/preview/${a.id}" class="btn-icon icon-view" title="Xem bài"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`;
+                }
+                actions += `<form method="post" action="/article/${a.id}/delete" class="inline-form" onsubmit="return confirm('Xóa bài viết này?')"><button type="submit" class="btn-icon icon-delete" title="Xóa bài"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></form>`;
+                cells[6].innerHTML = actions;
             }
-            if (a.status === 'published' && a.wp_post_url) {
-                actions += `<a href="${a.wp_post_url}" target="_blank" class="btn btn-sm btn-success">Mở bài</a>`;
-            } else if (a.status === 'ready' || a.status === 'failed') {
-                actions += `<a href="/preview/${a.id}" class="btn btn-sm">Xem</a>`;
-            }
-            actions += `<form method="post" action="/article/${a.id}/delete" class="inline-form" onsubmit="return confirm('Xóa bài viết này?')"><button type="submit" class="btn btn-sm btn-danger">Xóa</button></form>`;
-            cells[6].innerHTML = actions;
         });
     } catch (e) {}
 }, 3000);

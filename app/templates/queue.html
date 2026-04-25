@@ -37,14 +37,16 @@
                 <span class="article-meta">{{ a.created_at|vn_time }}</span>
                 <form method="post" action="/article/{{ a.id }}/delete" class="inline-form"
                       onsubmit="return confirm('Xóa bài viết này?')">
-                    <button type="submit" class="btn btn-sm btn-danger">Xóa</button>
+                    <button type="submit" class="btn-icon icon-delete" title="Xóa bài">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
                 </form>
             </div>
         </div>
         {% endfor %}
         {% else %}
         <div class="zone-empty">
-            <div class="empty-state-icon">&#128203;</div>
+            <div class="empty-state-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7084" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg></div>
             <p>Hàng chờ trống. Tạo bài viết và chọn "Đưa vào hàng chờ" để thêm vào đây.</p>
         </div>
         {% endif %}
@@ -71,7 +73,7 @@ function renderQueued(articles) {
     const btnAll = document.getElementById('btn-run-all');
     btnAll.style.display = articles.length ? '' : 'none';
     if (!articles.length) {
-        el.innerHTML = '<div class="zone-empty"><div class="empty-state-icon">&#128203;</div><p>Hàng chờ trống.</p></div>';
+        el.innerHTML = '<div class="zone-empty"><div class="empty-state-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7084" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg></div><p>Hàng chờ trống.</p></div>';
         document.getElementById('btn-run-selected').style.display = 'none';
         return;
     }
