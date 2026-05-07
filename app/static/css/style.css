@@ -224,11 +224,13 @@ body {
     position: relative;
 }
 .stat-icon svg { width: 18px; height: 18px; }
-.stat-icon svg { width: 18px; height: 18px; }
 .stat-icon.icon-published { background: var(--success-bg); color: var(--success); }
 .stat-icon.icon-pending { background: var(--warning-bg); color: var(--warning); }
 .stat-icon.icon-failed { background: var(--danger-bg); color: var(--danger); }
 .stat-icon.icon-total { background: var(--info-bg); color: var(--info); }
+.image-count { font-size: 11px; color: var(--text-muted); }
+.image-count.img-red { color: var(--danger); }
+.image-count.img-orange { color: var(--warning); }
 .stat-number {
     font-size: 28px;
     font-weight: 700;

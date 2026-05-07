@@ -324,6 +324,7 @@ async def articles_status(request: Request, db: Session = Depends(get_db)):
             "error_message": a.error_message or "",
             "caption": a.caption or "",
             "has_featured_image": bool(a.featured_image_path),
+            "image_count": (a.content or "").count("<img") if a.status in ("published", "failed") else None,
             "created_at": _to_vn(a.created_at),
         }
 

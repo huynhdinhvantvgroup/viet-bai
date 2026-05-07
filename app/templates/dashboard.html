@@ -77,7 +77,13 @@
                         {% else %}{{ a.status }}{% endif %}
                     </span>
                 </td>
-                <td>{{ a.word_count }}</td>
+                <td>
+                    {{ a.word_count }}
+                    {% if a.status in ('published', 'failed') %}
+                    {% set img_count = (a.content or '').split('<img') | length - 1 %}
+                    <span class="image-count {% if img_count == 0 %}img-red{% elif img_count <= 2 %}img-orange{% endif %}" title="Số ảnh trong bài"> · {{ img_count }} ảnh</span>
+                    {% endif %}
+                </td>
                 <td>{{ a.created_at|vn_time }}</td>
                 <td class="caption-cell">
                     {% if a.caption %}
@@ -194,7 +200,12 @@ setInterval(async () => {
             const cells = row.querySelectorAll('td');
             const oldStatus = row.dataset.status;
             cells[1].textContent = a.title || '(Chưa tạo)';
-            cells[3].textContent = a.word_count;
+            let wordHtml = a.word_count;
+            if (a.image_count !== null && a.image_count !== undefined) {
+                const cls = a.image_count === 0 ? 'img-red' : a.image_count <= 2 ? 'img-orange' : '';
+                wordHtml += ` <span class="image-count ${cls}" title="Số ảnh trong bài"> · ${a.image_count} ảnh</span>`;
+            }
+            cells[3].innerHTML = wordHtml;
             // Update caption column
             if (a.caption) {
                 const existBtn = cells[5].querySelector('.btn-copy-caption');
