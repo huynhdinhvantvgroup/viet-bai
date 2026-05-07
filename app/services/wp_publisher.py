@@ -82,6 +82,11 @@ def insert_featured_image_into_content(content: str, featured_url: str) -> str:
     h2_matches = list(h2_pattern.finditer(content))
 
     if not h2_matches:
+        # Fallback: insert after 3rd <p> tag
+        p_matches = list(re.finditer(r"</p>", content, re.IGNORECASE))
+        if len(p_matches) >= 3:
+            pos = p_matches[2].end()
+            return content[:pos] + img_html + content[pos:]
         return content + img_html
 
     def count_text_blocks(text):
@@ -107,8 +112,26 @@ def insert_images_into_content(content: str, image_urls: list[str]) -> str:
     h2_pattern = re.compile(r"(<h2[^>]*>.*?</h2>)", re.IGNORECASE)
     h2_matches = list(h2_pattern.finditer(content))
 
-    if not h2_matches or not image_urls:
+    if not image_urls:
         return content
+
+    if not h2_matches or len(h2_matches) < 2:
+        # Fallback: distribute images evenly among <p> tags
+        p_matches = list(re.finditer(r"</p>", content, re.IGNORECASE))
+        if len(p_matches) < 4:
+            return content
+        # Skip first 4 paragraphs (featured image area), spread rest evenly
+        available_p = p_matches[4:]
+        if not available_p:
+            return content
+        step = max(1, len(available_p) // len(image_urls))
+        result = content
+        for i, url in reversed(list(enumerate(image_urls))):
+            idx = min(i * step, len(available_p) - 1)
+            pos = available_p[idx].end()
+            img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{url}" alt="" /></figure>\n\n'
+            result = result[:pos] + img_html + result[pos:]
+        return result
 
     total_h2 = len(h2_matches)
     available = list(range(1, total_h2))

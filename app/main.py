@@ -147,6 +147,9 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     days_vi = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
     now_vn = f"{days_vi[now.weekday()]}, {now.strftime('%d/%m/%Y')}"
 
+    from app.config import SLOGAN_FILE
+    slogan = SLOGAN_FILE.read_text(encoding="utf-8").strip() if SLOGAN_FILE.exists() else ""
+
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "published_today": published_today,
@@ -158,6 +161,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         "total_pages": total_pages,
         "total_articles": total_articles,
         "now_vn": now_vn,
+        "slogan": slogan,
     })
 
 
@@ -381,14 +385,16 @@ def _write_env(values: dict):
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
-    from app.config import PROMPT_FILE
+    from app.config import PROMPT_FILE, SLOGAN_FILE
     default_prompt = PROMPT_FILE.read_text(encoding="utf-8") if PROMPT_FILE.exists() else ""
+    slogan = SLOGAN_FILE.read_text(encoding="utf-8").strip() if SLOGAN_FILE.exists() else ""
     env = _read_env() if user.role == "admin" else {}
 
     return templates.TemplateResponse(request, "settings.html", {
         "user": user,
         "env": env,
         "default_prompt": default_prompt,
+        "slogan": slogan,
     })
 
 
@@ -444,6 +450,11 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             gpt_generator.client = gpt_generator.AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
             gpt_generator.GEMINI_API_KEY = cfg.GEMINI_API_KEY
             image_search.PEXELS_API_KEY = cfg.PEXELS_API_KEY
+
+        # Save slogan
+        if "slogan" in data:
+            from app.config import SLOGAN_FILE
+            SLOGAN_FILE.write_text(data["slogan"].strip(), encoding="utf-8")
 
         # Save default prompt to prompt.txt
         if "default_prompt" in data and data["default_prompt"].strip():
@@ -775,6 +786,72 @@ async def adsense_report_api(request: Request, period: str = "7d", db: Session =
         "users": user_map,
         "period": period,
     })
+
+
+# ─── API: Top Earner ──────────────────────────────────
+
+@app.get("/api/top-earner")
+async def api_top_earner(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    try:
+        import app.config as cfg
+        from app.services.adsense_service import refresh_access_token, get_report
+
+        tz7 = timezone(timedelta(hours=7))
+        today = datetime.now(tz7).date()
+        start = today.replace(day=1)
+
+        tokens = db.query(AdsenseToken).all()
+        if not tokens:
+            return JSONResponse({"top": None, "rank": None})
+
+        all_rows = []
+        for tk in tokens:
+            try:
+                exp = tk.expires_at.replace(tzinfo=None) if tk.expires_at and tk.expires_at.tzinfo else tk.expires_at
+                now_utc = datetime.utcnow()
+                if not exp or exp < now_utc:
+                    new_data = await refresh_access_token(tk.refresh_token, cfg.GOOGLE_CLIENT_ID, cfg.GOOGLE_CLIENT_SECRET)
+                    tk.access_token = new_data["access_token"]
+                    tk.expires_at = now_utc + timedelta(seconds=new_data.get("expires_in", 3600))
+                    db.commit()
+                rows, _ = await get_report(tk.access_token, tk.account_id, str(start), str(today))
+                all_rows.extend(rows)
+            except Exception:
+                continue
+
+        # Merge by domain
+        merged = {}
+        for r in all_rows:
+            d = r.get("domain", "")
+            if d in merged:
+                merged[d] += r.get("earnings", 0)
+            else:
+                merged[d] = r.get("earnings", 0)
+
+        # Map domain → user
+        users_with_sub = db.query(User).filter(User.subdomain != "").all()
+        ranking = []
+        for u in users_with_sub:
+            earnings = merged.get(u.subdomain, 0)
+            ranking.append({"user_id": u.id, "username": u.username, "earnings": earnings})
+
+        ranking.sort(key=lambda x: x["earnings"], reverse=True)
+
+        top = ranking[0] if ranking and ranking[0]["earnings"] > 0 else None
+        my_rank = None
+        for i, r in enumerate(ranking):
+            if r["user_id"] == user.id:
+                my_rank = i + 1
+                break
+
+        return JSONResponse({
+            "top": top["username"] if top else None,
+            "rank": my_rank,
+            "total_users": len(ranking),
+        })
+    except Exception:
+        return JSONResponse({"top": None, "rank": None})
 
 
 # ─── Employee Profile ──────────────────────────────────

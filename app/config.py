@@ -34,3 +34,6 @@ DATABASE_URL = f"sqlite:///{BASE_DIR / 'database.sqlite'}"
 
 # Prompt
 PROMPT_FILE = BASE_DIR / "prompt.txt"
+
+# Slogan
+SLOGAN_FILE = BASE_DIR / "slogan.txt"

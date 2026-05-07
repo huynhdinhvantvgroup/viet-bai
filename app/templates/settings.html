@@ -66,6 +66,21 @@
 </div>
 
 {% if user.role == 'admin' %}
+<!-- Slogan (admin only) -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <h2>Slogan</h2>
+        <span class="badge" style="background:var(--info-bg);color:var(--info)">Hiển thị trên Trang chủ</span>
+    </div>
+    <div class="form-group">
+        <input type="text" id="slogan" value="{{ slogan or '' }}" placeholder="Nhập slogan hiển thị cho nhân viên..." maxlength="200">
+        <small>Hiển thị dưới tiêu đề trang chủ cho tất cả user</small>
+    </div>
+    <div class="settings-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Lưu cài đặt</button>
+    </div>
+</div>
+
 <!-- API Keys (admin only) -->
 <div class="settings-section">
     <div class="settings-section-header">
@@ -199,6 +214,8 @@ async function saveSettings() {
         custom_prompt: document.getElementById('custom_prompt').value,
     };
     // Admin fields
+    const sloganEl = document.getElementById('slogan');
+    if (sloganEl) data.slogan = sloganEl.value;
     const openaiKey = document.getElementById('openai_key');
     if (openaiKey) data.openai_key = openaiKey.value;
     const geminiKey = document.getElementById('gemini_key');

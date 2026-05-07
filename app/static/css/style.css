@@ -176,6 +176,35 @@ body {
     color: var(--text-secondary);
     margin-top: 4px;
 }
+.dashboard-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+}
+.banner-slogan, .banner-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.banner-slogan {
+    color: var(--text-secondary);
+}
+.banner-slogan svg {
+    color: var(--warning);
+    flex-shrink: 0;
+}
+.banner-top {
+    color: var(--accent);
+    font-weight: 600;
+}
+.banner-top svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
 
 /* ─── Stats Grid ─── */
 .stats-grid {
