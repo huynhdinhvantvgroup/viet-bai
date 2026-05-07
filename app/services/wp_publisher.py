@@ -46,9 +46,35 @@ async def upload_media_from_path_wp(file_path: str, filename: str, wp_cfg: dict)
     return await upload_media_wp(p.read_bytes(), filename, wp_cfg, mime)
 
 
+def _normalize_headings(content: str) -> str:
+    """If content has no <h2> tags, convert <p><strong>short text</strong></p> to <h2>."""
+    if re.search(r"<h2[^>]*>", content, re.IGNORECASE):
+        return content  # Already has h2, don't touch
+
+    def _replace(m):
+        text = m.group(1)
+        # Skip if contains <em> (emphasis, not heading)
+        if "<em>" in text.lower():
+            return m.group(0)
+        # Skip if too long (>100 chars = likely a sentence, not heading)
+        plain = re.sub(r"<[^>]+>", "", text)
+        if len(plain) > 100:
+            return m.group(0)
+        return f"<h2>{text}</h2>"
+
+    return re.sub(
+        r"<p>\s*<strong>((?:(?!<em>).)+?)</strong>\s*</p>",
+        _replace,
+        content,
+        flags=re.IGNORECASE,
+    )
+
+
 def insert_featured_image_into_content(content: str, featured_url: str) -> str:
     if not featured_url:
         return content
+
+    content = _normalize_headings(content)
 
     img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{featured_url}" alt="" /></figure>\n\n'
 
@@ -76,6 +102,8 @@ def insert_featured_image_into_content(content: str, featured_url: str) -> str:
 
 
 def insert_images_into_content(content: str, image_urls: list[str]) -> str:
+    content = _normalize_headings(content)
+
     h2_pattern = re.compile(r"(<h2[^>]*>.*?</h2>)", re.IGNORECASE)
     h2_matches = list(h2_pattern.finditer(content))
 

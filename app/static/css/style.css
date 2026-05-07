@@ -224,6 +224,7 @@ body {
     position: relative;
 }
 .stat-icon svg { width: 18px; height: 18px; }
+.stat-icon svg { width: 18px; height: 18px; }
 .stat-icon.icon-published { background: var(--success-bg); color: var(--success); }
 .stat-icon.icon-pending { background: var(--warning-bg); color: var(--warning); }
 .stat-icon.icon-failed { background: var(--danger-bg); color: var(--danger); }
