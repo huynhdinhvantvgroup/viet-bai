@@ -2,6 +2,7 @@ import asyncio
 import csv
 import json
 import io
+import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models import Article, User
@@ -15,23 +16,84 @@ from app.services.wp_publisher import (
     create_post_wp,
 )
 
+logger = logging.getLogger(__name__)
 
-# ─── Background Worker State ─────────────────────────────
+
+# ─── Redis Queue (with fallback to polling) ──────────────
+
+_redis_pool = None
+_redis_available = None  # None = not checked yet
+
+
+async def _check_redis():
+    """Check if Redis is reachable. Cache the result."""
+    global _redis_available
+    if _redis_available is not None:
+        return _redis_available
+    try:
+        import redis.asyncio as aioredis
+        from app.config import REDIS_URL
+        r = aioredis.from_url(REDIS_URL, socket_connect_timeout=2)
+        await r.ping()
+        await r.close()
+        _redis_available = True
+        logger.info("[QUEUE] Redis connected - using arq worker")
+    except Exception:
+        _redis_available = False
+        logger.info("[QUEUE] Redis not available - using fallback polling worker")
+    return _redis_available
+
+
+async def get_redis_pool():
+    global _redis_pool
+    if _redis_pool is None:
+        from arq import create_pool
+        from app.worker import parse_redis_url
+        from app.config import REDIS_URL
+        _redis_pool = await create_pool(parse_redis_url(REDIS_URL))
+    return _redis_pool
+
+
+async def enqueue_article(article_id: int):
+    """Enqueue article: use Redis if available, otherwise fallback worker picks it up."""
+    if await _check_redis():
+        pool = await get_redis_pool()
+        await pool.enqueue_job("process_article_task", article_id, _job_id=f"article:{article_id}")
+    # If no Redis, fallback worker loop will pick it up via DB polling
+
+
+async def run_queued(article_ids: list[int], db_factory):
+    db = db_factory()
+    try:
+        for aid in article_ids:
+            article = db.get(Article, aid)
+            if article and article.status == "queued":
+                article.status = "pending"
+                db.commit()
+                await enqueue_article(aid)
+    finally:
+        db.close()
+
+
+# ─── Fallback Polling Worker (used when Redis is not available) ──
 
 _worker_running = False
 _worker_task = None
 
 
-def is_worker_running() -> bool:
-    return _worker_running
-
-
 async def start_worker(db_factory):
+    """Start fallback polling worker if Redis is not available."""
     global _worker_running, _worker_task
     if _worker_running:
         return
+
+    if await _check_redis():
+        logger.info("[WORKER] Redis available - skipping fallback worker (use arq instead)")
+        return
+
     _worker_running = True
     _worker_task = asyncio.create_task(_worker_loop(db_factory))
+    logger.info("[WORKER] Fallback polling worker started")
 
 
 async def _worker_loop(db_factory):
@@ -48,8 +110,7 @@ async def _worker_loop(db_factory):
                 await asyncio.sleep(2)
                 continue
 
-            # Load the article owner's config
-            owner = db.query(User).get(article.user_id) if article.user_id else None
+            owner = db.get(User, article.user_id) if article.user_id else None
             wp_cfg = None
             custom_prompt = None
             if owner:
@@ -61,10 +122,8 @@ async def _worker_loop(db_factory):
                     }
                 custom_prompt = owner.custom_prompt
 
-            # Process: generate → images → publish
             await process_single_article(article, db, wp_cfg=wp_cfg, custom_prompt=custom_prompt)
 
-            # Auto publish
             if article.status not in ("failed",) and wp_cfg:
                 await publish_article(article, db, wp_cfg=wp_cfg)
             elif not wp_cfg:
@@ -74,22 +133,10 @@ async def _worker_loop(db_factory):
 
             await asyncio.sleep(1)
         except Exception as e:
-            print(f"[WORKER ERR] {e}")
+            logger.error(f"[WORKER ERR] {e}")
             await asyncio.sleep(3)
         finally:
             db.close()
-
-
-async def run_queued(article_ids: list[int], db_factory):
-    db = db_factory()
-    try:
-        for aid in article_ids:
-            article = db.query(Article).get(aid)
-            if article and article.status == "queued":
-                article.status = "pending"
-        db.commit()
-    finally:
-        db.close()
 
 
 # ─── CSV Parser ──────────────────────────────────────────

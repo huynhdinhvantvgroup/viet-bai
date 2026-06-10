@@ -3,7 +3,10 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, Text, Date
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from app.config import DATABASE_URL
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+_connect_args = {"check_same_thread": False} if _is_sqlite else {}
+_pool_kwargs = {} if _is_sqlite else {"pool_size": 5, "max_overflow": 5, "pool_pre_ping": True}
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, **_pool_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -78,24 +81,21 @@ class AdsenseToken(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # Auto-add missing columns to existing tables
-    import sqlite3
-    db_path = DATABASE_URL.replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    for table_name, model in [("articles", Article), ("users", User), ("adsense_tokens", AdsenseToken)]:
-        try:
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            existing = {row[1] for row in cursor.fetchall()}
-            for col in model.__table__.columns:
-                if col.name not in existing:
-                    col_type = str(col.type)
-                    default = f"DEFAULT ''" if col_type in ("TEXT", "VARCHAR") else "DEFAULT NULL"
-                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type} {default}")
-        except Exception:
-            pass
-    conn.commit()
-    conn.close()
+    # Auto-add missing columns (works with both SQLite and PostgreSQL)
+    from sqlalchemy import inspect as sa_inspect, text
+    inspector = sa_inspect(engine)
+    with engine.begin() as conn:
+        for table_name, model in [("articles", Article), ("users", User), ("adsense_tokens", AdsenseToken)]:
+            try:
+                existing = {c["name"] for c in inspector.get_columns(table_name)}
+                for col in model.__table__.columns:
+                    if col.name not in existing:
+                        col_type = col.type.compile(dialect=engine.dialect)
+                        conn.execute(text(
+                            f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type} DEFAULT NULL"
+                        ))
+            except Exception:
+                pass
 
 
 def get_db():

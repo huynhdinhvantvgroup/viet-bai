@@ -16,7 +16,7 @@ from app.auth import (
     COOKIE_NAME, login_required_middleware, ensure_admin_exists,
 )
 from app.services.batch_runner import (
-    parse_csv, start_worker, run_queued,
+    parse_csv, enqueue_article, run_queued, start_worker,
 )
 
 app = FastAPI(title="Health Content Writer")
@@ -61,7 +61,7 @@ async def startup():
     db = SessionLocal()
     ensure_admin_exists(db)
     db.close()
-    await start_worker(SessionLocal)
+    await start_worker(SessionLocal)  # Only starts if Redis is NOT available
 
 
 # ─── Helpers ──────────────────────────────────────────────
@@ -129,7 +129,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         Article.status == "failed", Article.created_at >= today_s
     ).count()
     processing = base.filter(
-        Article.status.in_(["pending", "generating", "images", "uploading", "publishing"])
+        Article.status.in_(["pending", "generating", "images", "uploading", "publishing", "deleting"])
     ).count()
     total_all = base.filter(Article.status == "published").count()
 
@@ -222,6 +222,9 @@ async def create_article(
     db.add(article)
     db.commit()
 
+    if status == "pending":
+        await enqueue_article(article.id)
+
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -254,6 +257,7 @@ async def publish_from_preview(request: Request, article_id: int, db: Session = 
     if article and article.status in ("preview", "ready", "failed"):
         article.status = "pending"
         db.commit()
+        await enqueue_article(article.id)
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -264,6 +268,7 @@ async def regenerate(request: Request, article_id: int, db: Session = Depends(ge
     if article:
         article.status = "pending"
         db.commit()
+        await enqueue_article(article.id)
     return RedirectResponse(url=f"/preview/{article_id}", status_code=303)
 
 
@@ -272,8 +277,12 @@ async def delete_article(request: Request, article_id: int, db: Session = Depend
     user = _get_user(request, db)
     article = db.query(Article).filter(Article.id == article_id, Article.user_id == user.id).first()
     if article:
-        db.delete(article)
-        db.commit()
+        if article.status in ("generating", "images", "uploading", "publishing"):
+            article.status = "deleting"
+            db.commit()
+        else:
+            db.delete(article)
+            db.commit()
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -308,7 +317,7 @@ async def articles_status(request: Request, db: Session = Depends(get_db)):
     total_all = base.filter(Article.status == "published").count()
 
     processing = base.filter(
-        Article.status.in_(["pending", "generating", "images", "uploading", "ready", "publishing"])
+        Article.status.in_(["pending", "generating", "images", "uploading", "ready", "publishing", "deleting"])
     ).order_by(Article.id.asc()).all()
 
     queued = base.filter(Article.status == "queued").order_by(Article.id.asc()).all()
@@ -548,7 +557,7 @@ async def admin_delete_user(request: Request, uid: int, db: Session = Depends(ge
     user = _get_user(request, db)
     if user.role != "admin" or uid == user.id:
         return RedirectResponse(url="/admin/users", status_code=303)
-    target = db.query(User).get(uid)
+    target = db.get(User, uid)
     if target:
         db.delete(target)
         db.commit()
@@ -560,7 +569,7 @@ async def admin_change_role(request: Request, uid: int, role: str = Form("user")
     user = _get_user(request, db)
     if user.role != "admin" or uid == user.id:
         return RedirectResponse(url="/admin/users", status_code=303)
-    target = db.query(User).get(uid)
+    target = db.get(User, uid)
     if target and role in ("admin", "user"):
         target.role = role
         db.commit()
@@ -572,7 +581,7 @@ async def admin_reset_password(request: Request, uid: int, password: str = Form(
     user = _get_user(request, db)
     if user.role != "admin":
         return RedirectResponse(url="/admin/users", status_code=303)
-    target = db.query(User).get(uid)
+    target = db.get(User, uid)
     if target and password.strip():
         target.password_hash = hash_password(password.strip())
         db.commit()
@@ -591,7 +600,7 @@ async def admin_update_user_info(
     user = _get_user(request, db)
     if user.role != "admin":
         return RedirectResponse(url="/admin/users", status_code=303)
-    target = db.query(User).get(uid)
+    target = db.get(User, uid)
     if target:
         new_name = username.strip()
         if new_name and new_name != target.username:
@@ -688,7 +697,7 @@ async def adsense_disconnect(request: Request, token_id: int, db: Session = Depe
     user = _get_user(request, db)
     if user.role != "admin":
         return RedirectResponse(url="/adsense", status_code=303)
-    token = db.query(AdsenseToken).get(token_id)
+    token = db.get(AdsenseToken, token_id)
     if token:
         db.delete(token)
         db.commit()
@@ -701,7 +710,7 @@ async def adsense_nickname(request: Request, db: Session = Depends(get_db)):
     if user.role != "admin":
         return JSONResponse({"ok": False}, status_code=403)
     data = await request.json()
-    token = db.query(AdsenseToken).get(data.get("token_id"))
+    token = db.get(AdsenseToken, data.get("token_id"))
     if token:
         token.nickname = data.get("nickname", "")
         db.commit()

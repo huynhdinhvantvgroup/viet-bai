@@ -30,7 +30,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 UPLOAD_DIR = BASE_DIR / os.getenv("UPLOAD_DIR", "uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{BASE_DIR / 'database.sqlite'}"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'database.sqlite'}")
+
+# Redis
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Prompt
 PROMPT_FILE = BASE_DIR / "prompt.txt"

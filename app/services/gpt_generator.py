@@ -121,10 +121,13 @@ Output the article as clean HTML for WordPress. Rules:
             extensions=["extra", "nl2br", "sane_lists"],
         )
 
-    # Count words from stripped text
+    # Count words from stripped text (supports CJK characters)
     import re
     plain_text = re.sub(r"<[^>]+>", "", content_html)
-    word_count = len(plain_text.split())
+    cjk_chars = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', plain_text))
+    non_cjk_text = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', ' ', plain_text)
+    latin_words = len(non_cjk_text.split())
+    word_count = cjk_chars + latin_words
 
     return {"title": title, "content": content_html, "word_count": word_count}
 

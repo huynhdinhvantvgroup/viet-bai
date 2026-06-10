@@ -38,7 +38,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | 
     uid = get_user_id_from_cookie(cookie)
     if not uid:
         return None
-    return db.query(User).get(uid)
+    return db.get(User, uid)
 
 
 def require_login(request: Request, db: Session = Depends(get_db)) -> User:
