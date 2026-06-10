@@ -70,6 +70,92 @@ def _normalize_headings(content: str) -> str:
     )
 
 
+def _count_paragraphs_between(content: str, start: int, end: int) -> int:
+    """Count <p> tags in a slice of content."""
+    segment = content[start:end]
+    return len(re.findall(r"<p[^>]*>", segment, re.IGNORECASE))
+
+
+def _find_insert_positions(content: str, num_images: int, min_gap: int = 3, reserve_top: int = 0) -> list[int]:
+    """Find positions to insert images, ensuring >=min_gap paragraphs between each.
+
+    Strategy:
+    1. Prefer inserting before <h2> tags (visually clean)
+    2. If no suitable <h2>, fallback to after </p> tags
+    3. Always ensure min_gap paragraphs from previous image / start
+
+    Args:
+        content: HTML content
+        num_images: number of images to place
+        min_gap: minimum paragraphs between images (default 3)
+        reserve_top: skip first N paragraphs (for featured image area)
+    """
+    if num_images == 0:
+        return []
+
+    # Build list of all candidate positions: (position, type, p_count_before)
+    # p_count_before = total <p> tags from start to this position
+    p_pattern = re.compile(r"</p>", re.IGNORECASE)
+    h2_pattern = re.compile(r"(<h2[^>]*>)", re.IGNORECASE)
+
+    all_p = list(p_pattern.finditer(content))
+    all_h2 = list(h2_pattern.finditer(content))
+
+    if not all_p:
+        return []
+
+    # Build a function: how many <p> before position X
+    p_ends = [m.end() for m in all_p]
+
+    def p_count_at(pos):
+        count = 0
+        for pe in p_ends:
+            if pe <= pos:
+                count += 1
+            else:
+                break
+        return count
+
+    # Candidate positions: before each H2 (preferred) + after each </p> (fallback)
+    candidates = []
+    for m in all_h2:
+        candidates.append((m.start(), "h2", p_count_at(m.start())))
+    for m in all_p:
+        candidates.append((m.end(), "p", p_count_at(m.end())))
+
+    # Sort by position
+    candidates.sort(key=lambda x: x[0])
+
+    # Remove candidates in the reserved top area
+    candidates = [c for c in candidates if c[2] >= reserve_top + min_gap]
+
+    # Greedy selection: pick positions with enough gap
+    chosen = []
+    last_p_count = reserve_top  # treat reserved area as "last image position"
+
+    # Prefer H2 positions first pass, then fill with P positions
+    h2_candidates = [c for c in candidates if c[0] == "h2" or c[1] == "h2"]
+    p_candidates = [c for c in candidates if c[1] == "p"]
+
+    # Try H2 first
+    for pos, typ, pc in candidates:
+        if len(chosen) >= num_images:
+            break
+        if pc - last_p_count >= min_gap:
+            # Prefer H2: if this is an H2 position, take it
+            # If this is a P position, check if there's an H2 nearby (within 1 paragraph)
+            if typ == "h2":
+                chosen.append(pos)
+                last_p_count = pc
+            elif typ == "p":
+                # Only use P if no H2 was available at similar distance
+                # Check if next candidate is H2 and close enough
+                chosen.append(pos)
+                last_p_count = pc
+
+    return chosen
+
+
 def insert_featured_image_into_content(content: str, featured_url: str) -> str:
     if not featured_url:
         return content
@@ -78,82 +164,39 @@ def insert_featured_image_into_content(content: str, featured_url: str) -> str:
 
     img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{featured_url}" alt="" /></figure>\n\n'
 
-    h2_pattern = re.compile(r"(<h2[^>]*>)", re.IGNORECASE)
-    h2_matches = list(h2_pattern.finditer(content))
+    positions = _find_insert_positions(content, 1, min_gap=3, reserve_top=0)
+    if positions:
+        pos = positions[0]
+        return content[:pos] + img_html + content[pos:]
 
-    if not h2_matches:
-        # Fallback: insert after 3rd <p> tag
-        p_matches = list(re.finditer(r"</p>", content, re.IGNORECASE))
-        if len(p_matches) >= 3:
-            pos = p_matches[2].end()
-            return content[:pos] + img_html + content[pos:]
-        return content + img_html
-
-    def count_text_blocks(text):
-        p_count = len(re.findall(r"<p[^>]*>", text, re.IGNORECASE))
-        if p_count >= 3:
-            return p_count
-        lines = [l.strip() for l in text.split("\n") if l.strip()]
-        text_lines = [l for l in lines if not re.match(r"^</?(?:div|figure|img|br|hr)[^>]*>$", l, re.IGNORECASE)]
-        return max(p_count, len(text_lines))
-
-    for m in h2_matches:
-        text_above = content[:m.start()]
-        if count_text_blocks(text_above) >= 3:
-            return content[:m.start()] + img_html + content[m.start():]
-
-    pos = h2_matches[0].start()
-    return content[:pos] + img_html + content[pos:]
+    # Final fallback: append at end
+    return content + img_html
 
 
 def insert_images_into_content(content: str, image_urls: list[str]) -> str:
-    content = _normalize_headings(content)
-
-    h2_pattern = re.compile(r"(<h2[^>]*>.*?</h2>)", re.IGNORECASE)
-    h2_matches = list(h2_pattern.finditer(content))
-
     if not image_urls:
         return content
 
-    if not h2_matches or len(h2_matches) < 2:
-        # Fallback: distribute images evenly among <p> tags
-        p_matches = list(re.finditer(r"</p>", content, re.IGNORECASE))
-        if len(p_matches) < 4:
-            return content
-        # Skip first 4 paragraphs (featured image area), spread rest evenly
-        available_p = p_matches[4:]
-        if not available_p:
-            return content
-        step = max(1, len(available_p) // len(image_urls))
-        result = content
-        for i, url in reversed(list(enumerate(image_urls))):
-            idx = min(i * step, len(available_p) - 1)
-            pos = available_p[idx].end()
-            img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{url}" alt="" /></figure>\n\n'
-            result = result[:pos] + img_html + result[pos:]
-        return result
+    content = _normalize_headings(content)
 
-    total_h2 = len(h2_matches)
-    available = list(range(1, total_h2))
-    if not available:
-        return content
+    # Detect if featured image was already inserted (figure tag in first portion)
+    first_figure = re.search(r"<figure[^>]*>", content, re.IGNORECASE)
+    if first_figure:
+        # Count paragraphs before first figure = reserve area
+        reserve = _count_paragraphs_between(content, 0, first_figure.start())
+        reserve = max(reserve, 2)  # at least skip 2 paragraphs past featured
+    else:
+        reserve = 0
 
-    step = max(1, len(available) // len(image_urls))
-    chosen = []
-    for i in range(len(image_urls)):
-        idx = i * step
-        if idx < len(available):
-            chosen.append(available[idx])
+    positions = _find_insert_positions(content, len(image_urls), min_gap=3, reserve_top=reserve)
 
-    insert_positions = []
-    for i, h2_idx in enumerate(chosen):
-        if i < len(image_urls) and h2_idx < total_h2:
-            insert_positions.append((h2_matches[h2_idx].end(), image_urls[i]))
-
+    # Insert in reverse order to preserve positions
     result = content
-    for pos, url in reversed(insert_positions):
-        img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{url}" alt="" /></figure>\n\n'
-        result = result[:pos] + img_html + result[pos:]
+    for i, pos in enumerate(reversed(positions)):
+        img_idx = len(positions) - 1 - i
+        if img_idx < len(image_urls):
+            img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{image_urls[img_idx]}" alt="" /></figure>\n\n'
+            result = result[:pos] + img_html + result[pos:]
 
     return result
 
