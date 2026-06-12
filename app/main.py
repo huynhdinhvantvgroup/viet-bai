@@ -896,24 +896,27 @@ async def api_top_earner(request: Request, db: Session = Depends(get_db)):
             else:
                 merged[d] = r.get("earnings", 0)
 
-        # Map domain → user
+        # Map domain → user, group by employee_name
         users_with_sub = db.query(User).filter(User.subdomain != "").all()
-        ranking = []
+        emp_earnings = {}
         for u in users_with_sub:
             earnings = merged.get(u.subdomain, 0)
-            ranking.append({"user_id": u.id, "username": u.username, "earnings": earnings})
+            name = u.employee_name or u.username
+            emp_earnings[name] = emp_earnings.get(name, 0) + earnings
 
+        ranking = [{"name": k, "earnings": v} for k, v in emp_earnings.items()]
         ranking.sort(key=lambda x: x["earnings"], reverse=True)
 
         top = ranking[0] if ranking and ranking[0]["earnings"] > 0 else None
+        my_name = user.employee_name or user.username
         my_rank = None
         for i, r in enumerate(ranking):
-            if r["user_id"] == user.id:
+            if r["name"] == my_name:
                 my_rank = i + 1
                 break
 
         return JSONResponse({
-            "top": top["username"] if top else None,
+            "top": top["name"] if top else None,
             "rank": my_rank,
             "total_users": len(ranking),
         })
