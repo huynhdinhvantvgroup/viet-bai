@@ -861,48 +861,30 @@ async def adsense_report_api(request: Request, period: str = "7d", db: Session =
 async def api_top_earner(request: Request, db: Session = Depends(get_db)):
     user = _get_user(request, db)
     try:
-        import app.config as cfg
-        from app.services.adsense_service import refresh_access_token, get_report
+        from sqlalchemy import func, extract
 
         tz7 = timezone(timedelta(hours=7))
-        today = datetime.now(tz7).date()
-        start = today.replace(day=1)
+        now = datetime.now(tz7)
+        year, mon = now.year, now.month
 
-        tokens = db.query(AdsenseToken).all()
-        if not tokens:
-            return JSONResponse({"top": None, "rank": None})
+        # Query daily_stats grouped by account_id
+        stats = db.query(
+            DailyStat.account_id,
+            func.sum(DailyStat.revenue_usd).label("total_rev"),
+        ).filter(
+            extract("year", DailyStat.date) == year,
+            extract("month", DailyStat.date) == mon,
+        ).group_by(DailyStat.account_id).all()
 
-        all_rows = []
-        for tk in tokens:
-            try:
-                exp = tk.expires_at.replace(tzinfo=None) if tk.expires_at and tk.expires_at.tzinfo else tk.expires_at
-                now_utc = datetime.utcnow()
-                if not exp or exp < now_utc:
-                    new_data = await refresh_access_token(tk.refresh_token, cfg.GOOGLE_CLIENT_ID, cfg.GOOGLE_CLIENT_SECRET)
-                    tk.access_token = new_data["access_token"]
-                    tk.expires_at = now_utc + timedelta(seconds=new_data.get("expires_in", 3600))
-                    db.commit()
-                rows, _ = await get_report(tk.access_token, tk.account_id, str(start), str(today))
-                all_rows.extend(rows)
-            except Exception:
-                continue
-
-        # Merge by domain
-        merged = {}
-        for r in all_rows:
-            d = r.get("domain", "")
-            if d in merged:
-                merged[d] += r.get("earnings", 0)
-            else:
-                merged[d] = r.get("earnings", 0)
-
-        # Map domain → user, group by employee_name
-        users_with_sub = db.query(User).filter(User.subdomain != "").all()
+        # Map account_id → user, group by employee_name
+        user_map = {u.id: u for u in db.query(User).all()}
         emp_earnings = {}
-        for u in users_with_sub:
-            earnings = merged.get(u.subdomain, 0)
+        for s in stats:
+            u = user_map.get(s.account_id)
+            if not u:
+                continue
             name = u.employee_name or u.username
-            emp_earnings[name] = emp_earnings.get(name, 0) + earnings
+            emp_earnings[name] = emp_earnings.get(name, 0) + float(s.total_rev or 0)
 
         ranking = [{"name": k, "earnings": v} for k, v in emp_earnings.items()]
         ranking.sort(key=lambda x: x["earnings"], reverse=True)
