@@ -3,107 +3,364 @@
 {% block title %}{{ user.username }} - tvgroup.media{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>{{ user.username }}</h1>
-    <p>Thông tin cá nhân & KPI</p>
+<div>
+
+<!-- Header -->
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
+    <div>
+        <h1 id="emp-name" style="font-size:20px;font-weight:600;margin:0;color:var(--text-primary);">{{ user.employee_name or user.username }}</h1>
+        <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0;">
+            H&#7879; s&#7889;: <span id="emp-heso" style="color:#9b8aef;font-weight:600;">--</span>
+            <span style="color:var(--border);margin:0 6px;">|</span>
+            {{ user.position or ('Admin' if user.role == 'admin' else 'Creator') }}
+            <span style="color:var(--border);margin:0 6px;">|</span>
+            {% for acc in accounts %}{% if not loop.first %}, {% endif %}{{ acc.subdomain or acc.username }}{% endfor %}
+        </p>
+    </div>
+    <div style="display:flex;gap:4px;background:var(--bg-input);border-radius:8px;padding:3px;">
+        <button class="bonus-tab active" id="tab-monthly" onclick="showMonthly()"></button>
+        <button class="bonus-tab" id="tab-daily" onclick="showDaily()">Theo ng&#224;y</button>
+    </div>
 </div>
 
-{% if user.subdomain %}
-<!-- AdSense Stats -->
-<div class="stats-grid" style="margin-top:20px">
-    <div class="stat-card">
-        <div class="stat-icon icon-published">$</div>
-        <div class="stat-number" id="my-earnings">--</div>
-        <div class="stat-label">Mốc hiệu suất</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon icon-pending">&#9776;</div>
-        <div class="stat-number" id="my-rpm">--</div>
-        <div class="stat-label">RPM</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon icon-total">&#128065;</div>
-        <div class="stat-number" id="my-pageviews">--</div>
-        <div class="stat-label">Page Views</div>
-    </div>
-</div>
-{% endif %}
+<!-- Monthly view -->
+<div id="monthly-view">
+    <!-- Status -->
+    <div id="status-box" style="border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:8px;"></div>
 
-<!-- KPI Progress -->
-{% if (user.monthly_kpi or 0) > 0 %}
-<div class="form-card" style="margin-top:20px">
-    <h3 style="font-size:14px;margin-bottom:16px">KPI tháng này</h3>
-    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:13px;color:var(--text-secondary)">Mục tiêu: <strong>${{ '%.0f'|format(user.monthly_kpi) }}</strong></span>
-        <span style="font-size:13px;color:var(--text-secondary)" id="kpi-achieved">Đang tải...</span>
+    <!-- 4 Cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:1rem;" id="main-cards">
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.8rem 1rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Views</p>
+            <p id="card-views" style="font-size:22px;font-weight:500;margin:4px 0 0;color:var(--text-primary);">--</p>
+        </div>
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.8rem 1rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Th&#432;&#7903;ng d&#7921; ki&#7871;n</p>
+            <p id="card-thuong" style="font-size:22px;font-weight:500;margin:4px 0 0;color:#5dca7a;">--</p>
+        </div>
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.8rem 1rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Th&#225;ng tr&#432;&#7899;c</p>
+            <p id="card-lastmonth" style="font-size:22px;font-weight:500;margin:4px 0 0;color:var(--text-primary);">--</p>
+        </div>
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.8rem 1rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Views t&#259;ng</p>
+            <p id="card-growth" style="font-size:22px;font-weight:500;margin:4px 0 0;">--</p>
+        </div>
     </div>
-    <div style="background:var(--bg-secondary);border-radius:8px;height:24px;overflow:hidden">
-        <div id="kpi-bar" style="height:100%;border-radius:8px;transition:width 0.5s;width:0%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
-    </div>
-    <p style="font-size:11px;color:var(--text-muted);margin-top:8px" id="kpi-note"></p>
-</div>
-{% elif user.subdomain %}
-<div class="form-card" style="margin-top:20px">
-    <p style="font-size:13px;color:var(--text-muted)">Admin chưa gán KPI cho bạn.</p>
-</div>
-{% endif %}
 
-<!-- Info -->
-<div class="form-card" style="margin-top:20px">
-    <h3 style="font-size:14px;margin-bottom:16px">Thông tin</h3>
-    <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px">
-        <span style="color:var(--text-muted)">Tài khoản:</span>
-        <span style="font-weight:600">{{ user.username }}</span>
-        <span style="color:var(--text-muted)">Vai trò:</span>
-        <span>{{ 'Admin' if user.role == 'admin' else 'Creator' }}</span>
-        {% if user.subdomain %}
-        <span style="color:var(--text-muted)">Subdomain:</span>
-        <span>{{ user.subdomain }}</span>
-        {% endif %}
-        <span style="color:var(--text-muted)">Ngày tạo:</span>
-        <span>{{ user.created_at|vn_time }}</span>
+    <!-- Milestones -->
+    <div class="form-card" style="padding:1rem;">
+        <p style="font-weight:500;font-size:13px;margin:0 0 10px;color:var(--text-primary);">M&#7889;c th&#432;&#7903;ng theo views</p>
+        <div id="milestones" style="position:relative;padding-left:20px;">
+            <div style="position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--border);"></div>
+        </div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-secondary);line-height:1.8;">
+            * M&#7889;c views &#432;&#7899;c l&#432;&#7907;ng theo h&#7879; s&#7889; hi&#7879;n t&#7841;i, c&#243; th&#7875; thay &#273;&#7893;i trong th&#225;ng<br>
+            * H&#7879; s&#7889; ph&#7909; thu&#7897;c v&#224;o qu&#7889;c gia, n&#7897;i dung v&#224; gi&#225; qu&#7843;ng c&#225;o theo m&#249;a<br>
+            * Th&#432;&#7903;ng th&#7921;c t&#7871; &#273;&#432;&#7907;c t&#237;nh v&#224;o cu&#7889;i th&#225;ng
+        </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-{% if user.subdomain %}
+<!-- Daily: Chart -->
+<div id="daily-view" style="display:none;flex-direction:column;height:calc(100vh - 160px);">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:1rem;">
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.7rem 0.8rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">T&#7893;ng views</p>
+            <p id="daily-total" style="font-size:18px;font-weight:500;margin:4px 0 0;color:var(--text-primary);">--</p>
+        </div>
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.7rem 0.8rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">TB/ng&#224;y</p>
+            <p id="daily-avg" style="font-size:18px;font-weight:500;margin:4px 0 0;color:#9b8aef;">--</p>
+        </div>
+        <div style="background:var(--bg-card);border-radius:8px;padding:0.7rem 0.8rem;border:1px solid var(--border);">
+            <p style="font-size:10px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Th&#432;&#7903;ng</p>
+            <p id="daily-thuong" style="font-size:18px;font-weight:500;margin:4px 0 0;color:#5dca7a;">--</p>
+        </div>
+    </div>
+    <div class="form-card" style="padding:1rem;margin-bottom:10px;flex:1;min-height:0;">
+        <div style="height:100%;"><canvas id="daily-chart"></canvas></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div id="best-day" style="background:rgba(93,202,122,0.06);border-radius:8px;padding:8px 10px;"></div>
+        <div id="worst-day" style="background:rgba(226,75,74,0.06);border-radius:8px;padding:8px 10px;"></div>
+    </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-async function loadMyStats() {
-    try {
-        const resp = await fetch('/api/adsense-report?period=month');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const myDomain = '{{ user.subdomain }}';
-        const myRow = data.rows.find(r => r.domain === myDomain);
-        const earned = myRow ? myRow.earnings : 0;
-        const pv = myRow ? (myRow.pageviews || 0) : 0;
-        const rpm = pv > 0 ? (earned / pv * 1000) : 0;
+let dailyChart = null;
+let lastMonthViews = 0;
+const now = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Ho_Chi_Minh'}));
+const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
-        document.getElementById('my-earnings').textContent = `$${earned.toFixed(2)}`;
-        document.getElementById('my-rpm').textContent = `$${rpm.toFixed(2)}`;
-        document.getElementById('my-pageviews').textContent = pv.toLocaleString();
+const lmDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+const lastMonth = `${lmDate.getFullYear()}-${String(lmDate.getMonth()+1).padStart(2,'0')}`;
+const lmKey = lmDate.getFullYear() * 100 + lmDate.getMonth() + 1;
 
-        {% if (user.monthly_kpi or 0) > 0 %}
-        const kpi = {{ user.monthly_kpi }};
-        const pct = Math.min(100, (earned / kpi * 100));
-        document.getElementById('kpi-achieved').textContent = `Đạt: $${earned.toFixed(2)} (${pct.toFixed(0)}%)`;
-        document.getElementById('kpi-bar').style.width = pct + '%';
-        if (pct >= 100) {
-            document.getElementById('kpi-bar').style.background = 'linear-gradient(90deg,#4ade80,#22c55e)';
-            document.getElementById('kpi-note').textContent = 'Đã đạt KPI tháng này!';
-        } else {
-            document.getElementById('kpi-note').textContent = `Còn thiếu: $${(kpi - earned).toFixed(2)}`;
-        }
-        {% endif %}
-    } catch(e) {
-        console.error(e);
-        {% if (user.monthly_kpi or 0) > 0 %}
-        document.getElementById('kpi-achieved').textContent = 'Không thể tải dữ liệu';
-        {% endif %}
+function fmt(n) { return n.toLocaleString('vi-VN'); }
+
+// Load last month first, then current month (need lastMonthViews for growth %)
+loadAll();
+
+async function loadAll() {
+  // Last month
+  try {
+    const resp = await fetch(`/api/employee-bonus?month=${lastMonth}`);
+    if (resp.ok) {
+      const d = await resp.json();
+      if (lmKey >= 202606 && (d.total_views > 0 || d.thuong_vnd > 0)) {
+        lastMonthViews = d.total_views;
+        document.getElementById('card-lastmonth').textContent = fmt(d.thuong_vnd) + '\u0111';
+        document.getElementById('card-lastmonth').style.color = d.thuong_vnd > 0 ? '#5dca7a' : 'var(--text-primary)';
+      } else {
+        document.getElementById('card-lastmonth').textContent = '--';
+        document.getElementById('card-lastmonth').style.color = 'var(--text-muted)';
+      }
     }
+  } catch(e) {}
+
+  // Current month
+  loadBonus();
 }
-loadMyStats();
+
+function showDaily() {
+  document.getElementById('monthly-view').style.display = 'none';
+  document.getElementById('daily-view').style.display = 'flex';
+  document.getElementById('tab-monthly').classList.remove('active');
+  document.getElementById('tab-daily').classList.add('active');
+  loadDaily();
+}
+
+function showMonthly() {
+  document.getElementById('monthly-view').style.display = 'block';
+  document.getElementById('daily-view').style.display = 'none';
+  document.getElementById('tab-daily').classList.remove('active');
+  document.getElementById('tab-monthly').classList.add('active');
+  loadBonus();
+}
+
+document.getElementById('tab-monthly').textContent = `T\u1ed5ng th\u00e1ng ${now.getMonth()+1}`;
+
+async function loadBonus() {
+  try {
+    const resp = await fetch(`/api/employee-bonus?month=${curMonth}`);
+    if (!resp.ok) return;
+    const d = await resp.json();
+    document.getElementById('emp-name').textContent = d.employee_name;
+    document.getElementById('emp-heso').textContent = d.he_so;
+    document.getElementById('card-views').textContent = fmt(d.total_views);
+    document.getElementById('card-thuong').textContent = fmt(d.thuong_vnd) + '\u0111';
+
+    // Growth %
+    const growthEl = document.getElementById('card-growth');
+    if (lastMonthViews > 0) {
+      const pct = ((d.total_views - lastMonthViews) / lastMonthViews * 100).toFixed(1);
+      if (pct >= 0) {
+        growthEl.innerHTML = `<span style="color:#5dca7a;">\u25b2 ${pct}%</span>`;
+      } else {
+        growthEl.innerHTML = `<span style="color:#ef6b6b;">\u25bc ${Math.abs(pct)}%</span>`;
+      }
+    } else {
+      growthEl.textContent = '--';
+      growthEl.style.color = 'var(--text-muted)';
+    }
+
+    // Status
+    const box = document.getElementById('status-box');
+    if (d.basic_met) {
+      // Find current tier and next tier
+      let curTier = 0, nextTier = -1;
+      for (let i = 0; i < d.moc_views.length; i++) {
+        if (d.moc_views[i].dat) curTier = i + 1;
+        else if (nextTier === -1) nextTier = i;
+      }
+      const nextM = nextTier >= 0 ? d.moc_views[nextTier] : null;
+      const prevViews = curTier > 0 ? d.moc_views[curTier - 1].views : 0;
+      const nextViews = nextM ? nextM.views : prevViews;
+      const progressToNext = nextM ? Math.min(((d.total_views - prevViews) / (nextViews - prevViews)) * 100, 100).toFixed(0) : 100;
+      const nextThuong = nextM ? fmt(nextM.thuong) + '\u0111' : '';
+
+      box.style.background = 'rgba(93,202,122,0.06)';
+      box.style.border = '1px solid rgba(93,202,122,0.25)';
+      box.innerHTML = `
+        <div style="width:100%;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#5dca7a;"></div>
+              <span style="font-size:13px;color:#5dca7a;font-weight:500;">\u0110\u00e3 \u0111\u1ea1t M\u1ed1c ${curTier}</span>
+            </div>
+            ${nextM ? `<span style="font-size:12px;color:var(--text-secondary);">Ti\u1ebfn \u0111\u1ebfn M\u1ed1c ${nextTier + 1} \u2192 <span style="color:#5dca7a;font-weight:600;">${nextThuong}</span></span>` : `<span style="font-size:12px;color:#5dca7a;">Max!</span>`}
+          </div>
+          <div style="position:relative;background:var(--bg-input);border-radius:8px;height:14px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg,#5dca7a,#7bc8f0);height:100%;width:${progressToNext}%;border-radius:8px;transition:width 0.5s;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <span style="font-size:10px;color:#5dca7a;">M\u1ed1c ${curTier} \u2713</span>
+            <span style="font-size:11px;font-weight:600;color:#7bc8f0;">${progressToNext}%</span>
+            <span style="font-size:10px;color:var(--text-muted);">${nextM ? 'M\u1ed1c ' + (nextTier + 1) : ''}</span>
+          </div>
+        </div>`;
+    } else {
+      const remaining = d.moc_views.length > 0 ? d.moc_views[0].views - d.total_views : 0;
+      box.style.background = 'rgba(226,75,74,0.08)';
+      box.style.border = '1px solid rgba(226,75,74,0.3)';
+      box.innerHTML = `
+        <div style="width:100%;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#ef6b6b;"></div>
+              <span style="font-size:13px;color:#ef6b6b;font-weight:500;">Ch\u01b0a \u0111\u1ea1t y\u00eau c\u1ea7u c\u01a1 b\u1ea3n</span>
+            </div>
+            <span style="font-size:12px;color:var(--text-secondary);">C\u00f2n ~${fmt(remaining)} views</span>
+          </div>
+          <div style="position:relative;background:var(--bg-input);border-radius:8px;height:14px;overflow:hidden;">
+            <div style="background:linear-gradient(90deg,#ef6b6b,#f0a030);height:100%;width:${d.basic_progress}%;border-radius:8px;transition:width 0.5s;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <span style="font-size:10px;color:var(--text-muted);">0 views</span>
+            <span style="font-size:11px;font-weight:600;color:#f0a030;">${d.basic_progress}%</span>
+            <span style="font-size:10px;color:var(--text-muted);">M\u1ed1c 1</span>
+          </div>
+        </div>`;
+    }
+
+    // Milestones — compact 1 line each
+    const el = document.getElementById('milestones');
+    let html = '<div style="position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--border);"></div>';
+    let positionInserted = false;
+
+    if (!d.moc_views.length || d.he_so === 0) {
+      html += `<div style="padding:12px 0;text-align:center;">
+        <p style="font-size:12px;color:var(--text-muted);margin:0;">Ch\u01b0a c\u00f3 d\u1eef li\u1ec7u AdSense.</p>
+      </div>`;
+    } else {
+      for (let i = 0; i < d.moc_views.length; i++) {
+        const m = d.moc_views[i];
+        if (m.dat) {
+          html += milestoneHtml(m, i + 1, 'achieved', 0);
+        } else {
+          if (!positionInserted) {
+            html += currentPositionHtml(d.total_views);
+            positionInserted = true;
+            const remaining = m.views - d.total_views;
+            html += milestoneHtml(m, i + 1, 'next', remaining);
+          } else {
+            html += milestoneHtml(m, i + 1, 'future', 0);
+          }
+        }
+      }
+      if (!positionInserted) html += currentPositionHtml(d.total_views);
+    }
+    el.innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+function milestoneHtml(m, idx, type, remaining) {
+  const isAchieved = type === 'achieved';
+  const dotColor = isAchieved ? '#5dca7a' : (type === 'next' ? '#5b6abf' : '#333355');
+  const textColor = isAchieved ? '#5dca7a' : 'var(--text-primary)';
+  const amtColor = isAchieved ? '#5dca7a' : 'var(--text-secondary)';
+
+  let label = `<span style="font-weight:600;">${fmt(m.views)}</span>`;
+  label += ` <span style="font-size:11px;color:var(--text-secondary);">M\u1ed1c ${idx}</span>`;
+  if (isAchieved) {
+    label += ` <span style="font-size:11px;color:#5dca7a;">\u2713</span>`;
+  } else if (type === 'next' && remaining > 0) {
+    label += ` <span style="font-size:11px;color:#ef6b6b;">\u00b7 C\u00f2n ~${fmt(remaining)}</span>`;
+  }
+
+  return `
+    <div style="position:relative;margin-bottom:10px;">
+      <div style="position:absolute;left:-17px;top:5px;width:10px;height:10px;border-radius:50%;background:${dotColor};border:2px solid var(--bg-card);"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
+        <p style="font-size:13px;margin:0;color:${textColor};">${label}</p>
+        <p style="font-size:13px;font-weight:500;margin:0;color:${amtColor};">${fmt(m.thuong)}\u0111</p>
+      </div>
+    </div>`;
+}
+
+function currentPositionHtml(views) {
+  return `
+    <div style="position:relative;margin-bottom:10px;">
+      <div style="position:absolute;left:-19px;top:4px;width:16px;height:16px;border-radius:50%;background:#7b8aef;border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;">
+        <div style="width:4px;height:4px;border-radius:50%;background:#fff;"></div>
+      </div>
+      <div style="background:rgba(123,138,239,0.1);border-radius:6px;padding:6px 12px;border:1px solid rgba(123,138,239,0.3);">
+        <p style="font-size:13px;font-weight:500;margin:0;color:#7b8aef;"><svg width="12" height="12" viewBox="0 0 24 24" fill="#7b8aef" style="vertical-align:-1px;margin-right:3px;"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>B\u1ea1n \u0111ang \u1edf \u0111\u00e2y: ${fmt(views)} views</p>
+      </div>
+    </div>`;
+}
+
+async function loadDaily() {
+  try {
+    const resp = await fetch(`/api/employee-daily?month=${curMonth}`);
+    if (!resp.ok) return;
+    const d = await resp.json();
+    document.getElementById('daily-total').textContent = fmt(d.total_views);
+    document.getElementById('daily-avg').textContent = fmt(d.avg_daily);
+    document.getElementById('daily-thuong').textContent = fmt(d.thuong_vnd) + '\u0111';
+
+    if (d.best) {
+      document.getElementById('best-day').innerHTML = `<p style="font-size:10px;color:var(--text-secondary);margin:0;">Ng\u00e0y cao nh\u1ea5t</p>
+        <p style="font-size:13px;font-weight:500;margin:3px 0 0;color:#5dca7a;">${d.best.date.slice(5)} \u2014 ${fmt(d.best.views)} views</p>`;
+    }
+    if (d.worst) {
+      document.getElementById('worst-day').innerHTML = `<p style="font-size:10px;color:var(--text-secondary);margin:0;">Ng\u00e0y th\u1ea5p nh\u1ea5t</p>
+        <p style="font-size:13px;font-weight:500;margin:3px 0 0;color:#ef6b6b;">${d.worst.date.slice(5)} \u2014 ${fmt(d.worst.views)} views</p>`;
+    }
+
+    const labels = d.daily.map(x => x.date.slice(8));
+    const values = d.daily.map(x => x.views);
+    const today = new Date().getDate();
+
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(document.getElementById('daily-chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: values.map((_, i) => parseInt(labels[i]) === today ? '#7b8aef' : '#5b6abf'),
+          borderColor: values.map((_, i) => parseInt(labels[i]) === today ? '#9b8aef' : 'transparent'),
+          borderWidth: 2, borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#888', font: { size: 9 } } },
+          y: { grid: { color: '#2a2a3a' }, ticks: { color: '#888', font: { size: 9 } } },
+        },
+      },
+    });
+  } catch(e) { console.error(e); }
+}
 </script>
-{% endif %}
+
+<style>
+.bonus-tab {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all .15s;
+}
+.bonus-tab.active {
+  background: #5b6abf;
+  color: #fff;
+  font-weight: 500;
+}
+.bonus-tab:hover:not(.active) { color: var(--text-primary); }
+@media (max-width: 600px) {
+  #main-cards { grid-template-columns: 1fr 1fr !important; }
+}
+</style>
 {% endblock %}

@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.config import UPLOAD_DIR
-from app.models import init_db, get_db, Article, User, AdsenseToken, SessionLocal
+from app.models import init_db, get_db, Article, User, AdsenseToken, DailyStat, SystemConfig, SessionLocal
 from app.auth import (
     hash_password, verify_password,
     create_session_cookie, get_current_user,
@@ -595,6 +595,8 @@ async def admin_update_user_info(
     role: str = Form(""),
     subdomain: str = Form(""),
     monthly_kpi: float = Form(0),
+    employee_name: str = Form(""),
+    position: str = Form(""),
     db: Session = Depends(get_db),
 ):
     user = _get_user(request, db)
@@ -611,8 +613,64 @@ async def admin_update_user_info(
             target.role = role
         target.subdomain = subdomain.strip()
         target.monthly_kpi = monthly_kpi
+        target.employee_name = employee_name.strip()
+        target.position = position.strip()
         db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
+
+
+# ─── Admin: Bonus Config ────────────────────────────────
+
+@app.post("/admin/bonus/config")
+async def admin_save_config(request: Request, conversion_rate: float = Form(0.35), usd_vnd_rate: float = Form(26000), db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/")
+    for key, val in [("conversion_rate", str(conversion_rate)), ("usd_vnd_rate", str(usd_vnd_rate))]:
+        row = db.get(SystemConfig, key)
+        if row:
+            row.value = val
+        else:
+            db.add(SystemConfig(key=key, value=val))
+    db.commit()
+    return RedirectResponse(url="/boss", status_code=303)
+
+
+@app.post("/admin/bonus/tiers")
+async def admin_save_tiers(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return RedirectResponse(url="/")
+    form = await request.form()
+    tiers = []
+    i = 0
+    while f"min_{i}" in form:
+        tiers.append({
+            "min_usd": float(form.get(f"min_{i}", 0)),
+            "max_usd": float(form.get(f"max_{i}", 0)),
+            "bonus_rate": float(form.get(f"rate_{i}", 0)),
+        })
+        i += 1
+    row = db.get(SystemConfig, "bonus_tiers")
+    if row:
+        row.value = json.dumps(tiers)
+    else:
+        db.add(SystemConfig(key="bonus_tiers", value=json.dumps(tiers)))
+    db.commit()
+    return RedirectResponse(url="/boss", status_code=303)
+
+
+@app.post("/api/admin/sync-adsense")
+async def admin_sync_adsense(request: Request, db: Session = Depends(get_db)):
+    user = _get_user(request, db)
+    if user.role != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    try:
+        from app.services.adsense_sync import sync_daily_stats
+        await sync_daily_stats()
+        return JSONResponse({"message": "Đã cập nhật dữ liệu!"})
+    except Exception as e:
+        return JSONResponse({"error": str(e), "message": f"Loi: {e}"})
 
 
 # ─── AdSense OAuth + Report (Admin only) ────────────────
@@ -863,6 +921,316 @@ async def api_top_earner(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"top": None, "rank": None})
 
 
+# ─── API: Employee Bonus Dashboard ───────────────────────
+
+def _get_bonus_config(db):
+    """Load bonus tiers + system config from DB."""
+    tiers_row = db.get(SystemConfig, "bonus_tiers")
+    conv_row = db.get(SystemConfig, "conversion_rate")
+    rate_row = db.get(SystemConfig, "usd_vnd_rate")
+    tiers = json.loads(tiers_row.value) if tiers_row else []
+    conversion_rate = float(conv_row.value) if conv_row else 0.35
+    usd_vnd_rate = float(rate_row.value) if rate_row else 26000
+    return tiers, conversion_rate, usd_vnd_rate
+
+
+def _lookup_bonus_tier(tiers, total_usd):
+    """Find bonus rate for given USD amount."""
+    if not tiers:
+        return 0
+    for t in tiers:
+        if t["min_usd"] <= total_usd <= t["max_usd"]:
+            return t["bonus_rate"]
+    if total_usd > tiers[-1]["max_usd"]:
+        return tiers[-1]["bonus_rate"]
+    return 0
+
+
+def _get_employee_accounts(user, db):
+    """Get all accounts for this user's employee group (same employee_name)."""
+    if user.employee_name:
+        return db.query(User).filter(User.employee_name == user.employee_name).all()
+    return [user]
+
+
+@app.get("/api/employee-bonus")
+async def api_employee_bonus(request: Request, month: str = "", db: Session = Depends(get_db)):
+    """Return bonus dashboard data for the logged-in employee."""
+    user = _get_user(request, db)
+
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+
+    # Parse month param (YYYY-MM) or default to current month
+    if month:
+        try:
+            year, mon = int(month.split("-")[0]), int(month.split("-")[1])
+        except (ValueError, IndexError):
+            year, mon = now.year, now.month
+    else:
+        year, mon = now.year, now.month
+
+    is_current_month = (year == now.year and mon == now.month)
+
+    # Get all accounts for this employee
+    accounts = _get_employee_accounts(user, db)
+    account_ids = [a.id for a in accounts]
+
+    # Get employee name
+    employee_name = user.employee_name or user.username
+
+    # Query daily_stats for the month
+    from sqlalchemy import func, extract
+    stats = db.query(
+        func.sum(DailyStat.page_views).label("total_views"),
+        func.sum(DailyStat.revenue_usd).label("total_revenue"),
+    ).filter(
+        DailyStat.account_id.in_(account_ids),
+        extract("year", DailyStat.date) == year,
+        extract("month", DailyStat.date) == mon,
+    ).first()
+
+    total_views = int(stats.total_views or 0)
+    total_revenue = float(stats.total_revenue or 0)
+
+    # RPM average
+    rpm_stats = db.query(
+        func.sum(DailyStat.rpm * DailyStat.page_views).label("sum_rpm_views"),
+        func.sum(DailyStat.page_views).label("sum_views"),
+    ).filter(
+        DailyStat.account_id.in_(account_ids),
+        extract("year", DailyStat.date) == year,
+        extract("month", DailyStat.date) == mon,
+    ).first()
+
+    sum_rpm_views = float(rpm_stats.sum_rpm_views or 0)
+    sum_views = int(rpm_stats.sum_views or 0)
+    avg_rpm = sum_rpm_views / sum_views if sum_views > 0 else 0
+
+    # Load config
+    tiers, conversion_rate, usd_vnd_rate = _get_bonus_config(db)
+
+    # Calculate he_so (market coefficient) - visible to employee
+    he_so = round(avg_rpm * conversion_rate, 2)
+
+    # Calculate bonus
+    rate_vnd = usd_vnd_rate * conversion_rate  # 26000 * 0.35 = 9100
+    gia_tri = total_revenue * rate_vnd
+    bonus_rate = _lookup_bonus_tier(tiers, total_revenue)
+    thuong_vnd = int(gia_tri * bonus_rate)
+
+    # Basic requirement status
+    basic_met = total_revenue >= 1000
+    basic_progress = min(total_revenue / 1000, 1.0) if not basic_met else 1.0
+
+    # Milestones (views-based, for employee display)
+    moc_views = []
+    for t in tiers:
+        if t["min_usd"] > 0:
+            views_needed = int(t["min_usd"] * 1000 / avg_rpm) if avg_rpm > 0 else 0
+            thuong_min = int(t["min_usd"] * rate_vnd * t["bonus_rate"])
+            moc_views.append({
+                "views": views_needed,
+                "thuong": thuong_min,
+                "dat": total_views >= views_needed,
+            })
+
+    return JSONResponse({
+        "employee_name": employee_name,
+        "he_so": he_so,
+        "total_views": total_views,
+        "total_revenue_usd": round(total_revenue, 2),
+        "thuong_vnd": thuong_vnd,
+        "basic_met": basic_met,
+        "basic_progress": round(basic_progress * 100, 1),
+        "moc_views": moc_views,
+        "month": f"{year}-{mon:02d}",
+        "is_current_month": is_current_month,
+    })
+
+
+@app.get("/api/employee-daily")
+async def api_employee_daily(request: Request, month: str = "", db: Session = Depends(get_db)):
+    """Return daily views breakdown for chart."""
+    user = _get_user(request, db)
+
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+
+    if month:
+        try:
+            year, mon = int(month.split("-")[0]), int(month.split("-")[1])
+        except (ValueError, IndexError):
+            year, mon = now.year, now.month
+    else:
+        year, mon = now.year, now.month
+
+    accounts = _get_employee_accounts(user, db)
+    account_ids = [a.id for a in accounts]
+
+    from sqlalchemy import func, extract
+    rows = db.query(
+        DailyStat.date,
+        func.sum(DailyStat.page_views).label("views"),
+    ).filter(
+        DailyStat.account_id.in_(account_ids),
+        extract("year", DailyStat.date) == year,
+        extract("month", DailyStat.date) == mon,
+    ).group_by(DailyStat.date).order_by(DailyStat.date).all()
+
+    daily = [{"date": str(r.date), "views": int(r.views)} for r in rows]
+
+    total_views = sum(d["views"] for d in daily)
+    avg_daily = int(total_views / len(daily)) if daily else 0
+
+    best = max(daily, key=lambda x: x["views"]) if daily else None
+    worst = min(daily, key=lambda x: x["views"]) if daily else None
+
+    # Thưởng dự kiến (same calc as bonus endpoint)
+    tiers, conversion_rate, usd_vnd_rate = _get_bonus_config(db)
+
+    stats = db.query(
+        func.sum(DailyStat.revenue_usd).label("total_revenue"),
+    ).filter(
+        DailyStat.account_id.in_(account_ids),
+        extract("year", DailyStat.date) == year,
+        extract("month", DailyStat.date) == mon,
+    ).first()
+    total_revenue = float(stats.total_revenue or 0)
+    rate_vnd = usd_vnd_rate * conversion_rate
+    bonus_rate = _lookup_bonus_tier(tiers, total_revenue)
+    thuong_vnd = int(total_revenue * rate_vnd * bonus_rate)
+
+    return JSONResponse({
+        "daily": daily,
+        "total_views": total_views,
+        "avg_daily": avg_daily,
+        "thuong_vnd": thuong_vnd,
+        "best": best,
+        "worst": worst,
+        "month": f"{year}-{mon:02d}",
+    })
+
+
+# ─── Boss Dashboard ──────────────────────────────────────
+
+@app.get("/boss", response_class=HTMLResponse)
+async def boss_page(request: Request, db: Session = Depends(get_db)):
+    try:
+        user = _get_user(request, db)
+        if user.role != "admin":
+            return RedirectResponse(url="/")
+        tiers, conversion_rate, usd_vnd_rate = _get_bonus_config(db)
+        return templates.TemplateResponse(request, "boss.html", {
+            "user": user,
+            "tiers": tiers,
+            "config": {"conversion_rate": conversion_rate, "usd_vnd_rate": usd_vnd_rate},
+        })
+    except Exception as e:
+        import traceback
+        logger.error("Boss page error: %s", traceback.format_exc())
+        return HTMLResponse(f"<pre>{traceback.format_exc()}</pre>", status_code=500)
+
+
+@app.get("/api/boss-overview")
+async def api_boss_overview(request: Request, month: str = "", db: Session = Depends(get_db)):
+    """Return full overview for boss: all employees, revenue, bonus."""
+    try:
+        user = _get_user(request, db)
+    except Exception:
+        return JSONResponse({"error": "Not logged in"}, status_code=401)
+    if user.role != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    tz7 = timezone(timedelta(hours=7))
+    now = datetime.now(tz7)
+    if month:
+        try:
+            year, mon = int(month.split("-")[0]), int(month.split("-")[1])
+        except (ValueError, IndexError):
+            year, mon = now.year, now.month
+    else:
+        year, mon = now.year, now.month
+
+    tiers, conversion_rate, usd_vnd_rate = _get_bonus_config(db)
+    rate_vnd = usd_vnd_rate * conversion_rate
+
+    from sqlalchemy import func, extract
+
+    # Group users by employee_name
+    all_users = db.query(User).filter(User.employee_name != "", User.employee_name != None).all()
+    groups = {}
+    for u in all_users:
+        groups.setdefault(u.employee_name, []).append(u)
+
+    result = []
+    for emp_name, accounts in groups.items():
+        account_ids = [a.id for a in accounts]
+
+        stats = db.query(
+            func.sum(DailyStat.page_views).label("views"),
+            func.sum(DailyStat.revenue_usd).label("revenue"),
+            func.sum(DailyStat.rpm * DailyStat.page_views).label("rpm_views"),
+            func.sum(DailyStat.page_views).label("sum_views"),
+        ).filter(
+            DailyStat.account_id.in_(account_ids),
+            extract("year", DailyStat.date) == year,
+            extract("month", DailyStat.date) == mon,
+        ).first()
+
+        views = int(stats.views or 0)
+        revenue = float(stats.revenue or 0)
+        sum_views = int(stats.sum_views or 0)
+        rpm_views = float(stats.rpm_views or 0)
+        avg_rpm = rpm_views / sum_views if sum_views > 0 else 0
+        he_so = round(avg_rpm * conversion_rate, 2)
+        bonus_rate = _lookup_bonus_tier(tiers, revenue)
+        thuong_vnd = int(revenue * rate_vnd * bonus_rate)
+
+        # Find tier index (bậc)
+        tier_idx = 0
+        for i, t in enumerate(tiers):
+            if t["min_usd"] <= revenue <= t["max_usd"]:
+                tier_idx = i
+                break
+            if revenue > t["max_usd"]:
+                tier_idx = i
+
+        # Progress toward next tier
+        basic_met = revenue >= 1000
+        if tier_idx < len(tiers) - 1:
+            next_min = tiers[tier_idx + 1]["min_usd"] if not basic_met else tiers[tier_idx + 1]["min_usd"]
+            progress = min(revenue / next_min * 100, 100) if next_min > 0 else 100
+        else:
+            progress = 100
+
+        result.append({
+            "name": emp_name,
+            "accounts": [{"username": a.username} for a in accounts],
+            "views": views,
+            "avg_rpm": round(avg_rpm, 2),
+            "revenue_usd": round(revenue, 2),
+            "tier_idx": tier_idx,
+            "bonus_rate": bonus_rate,
+            "thuong_vnd": thuong_vnd,
+            "basic_met": basic_met,
+            "progress": round(progress, 1),
+        })
+
+    total_revenue = sum(r["revenue_usd"] for r in result)
+    total_thuong = sum(r["thuong_vnd"] for r in result)
+    doanh_thu_vnd = int(total_revenue * usd_vnd_rate)
+
+    return JSONResponse({
+        "employees": sorted(result, key=lambda x: x["revenue_usd"], reverse=True),
+        "total_revenue": round(total_revenue, 2),
+        "total_thuong": total_thuong,
+        "doanh_thu_vnd": doanh_thu_vnd,
+        "tiers": tiers,
+        "month": f"{year}-{mon:02d}",
+    })
+
+
 # ─── Employee Profile ──────────────────────────────────
 
 @app.get("/profile", response_class=HTMLResponse)
@@ -879,8 +1247,11 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
     posts_month = base.filter(Article.published_at >= month_start).count()
     posts_total = base.count()
 
+    accounts = _get_employee_accounts(user, db)
+
     return templates.TemplateResponse(request, "profile.html", {
         "user": user,
+        "accounts": accounts,
         "posts_today": posts_today,
         "posts_month": posts_month,
         "posts_total": posts_total,

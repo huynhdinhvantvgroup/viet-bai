@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, Column, Integer, Float, String, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, Float, String, Text, DateTime, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from app.config import DATABASE_URL
 
@@ -27,6 +27,9 @@ class User(Base):
     # AdSense / KPI
     subdomain = Column(String(500), default="")
     monthly_kpi = Column(Float, default=0)
+    # Employee grouping
+    employee_name = Column(String(100), default="")
+    position = Column(String(100), default="")
     # Meta
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -79,13 +82,37 @@ class AdsenseToken(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class DailyStat(Base):
+    __tablename__ = "daily_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    page_views = Column(Integer, default=0)
+    rpm = Column(Float, default=0)
+    revenue_usd = Column(Float, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("account_id", "date", name="uq_account_date"),
+    )
+
+    account = relationship("User")
+
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+
+    key = Column(String(50), primary_key=True)
+    value = Column(Text, default="")
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Auto-add missing columns (works with both SQLite and PostgreSQL)
     from sqlalchemy import inspect as sa_inspect, text
     inspector = sa_inspect(engine)
     with engine.begin() as conn:
-        for table_name, model in [("articles", Article), ("users", User), ("adsense_tokens", AdsenseToken)]:
+        for table_name, model in [("articles", Article), ("users", User), ("adsense_tokens", AdsenseToken), ("daily_stats", DailyStat)]:
             try:
                 existing = {c["name"] for c in inspector.get_columns(table_name)}
                 for col in model.__table__.columns:

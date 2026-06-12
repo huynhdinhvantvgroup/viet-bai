@@ -1,6 +1,6 @@
 import logging
 from urllib.parse import urlparse
-from arq import create_pool
+from arq import create_pool, cron
 from arq.connections import RedisSettings
 from app.config import REDIS_URL
 from app.models import SessionLocal, Article, User
@@ -91,8 +91,17 @@ async def process_article_task(ctx, article_id: int):
         db.close()
 
 
+async def sync_adsense_cron(ctx):
+    """Cron job: sync AdSense data daily at 23:00 UTC (6:00 AM VN)."""
+    from app.services.adsense_sync import sync_daily_stats
+    logger.info("[CRON] Starting daily AdSense sync")
+    await sync_daily_stats()
+    logger.info("[CRON] AdSense sync complete")
+
+
 class WorkerSettings:
     functions = [process_article_task]
+    cron_jobs = [cron(sync_adsense_cron, hour=23, minute=0)]
     redis_settings = parse_redis_url(REDIS_URL)
     max_jobs = 10
     job_timeout = 600

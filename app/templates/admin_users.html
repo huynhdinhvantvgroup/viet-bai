@@ -66,6 +66,8 @@
                         <input type="hidden" name="role" value="{{ u.role }}">
                         <input type="hidden" name="subdomain" value="{{ u.subdomain or '' }}">
                         <input type="hidden" name="monthly_kpi" value="{{ u.monthly_kpi or 0 }}">
+                        <input type="hidden" name="employee_name" value="{{ u.employee_name or '' }}">
+                        <input type="hidden" name="position" value="{{ u.position or '' }}">
                         <button type="submit" class="btn btn-sm" style="padding:2px 6px;font-size:10px">Lưu</button>
                     </form>
                 </td>
@@ -103,12 +105,18 @@
             <tr style="border-bottom:2px solid var(--border)">
                 <td></td>
                 <td colspan="7" style="padding-top:0;padding-bottom:12px">
-                    <form method="post" action="/admin/users/{{ u.id }}/update-info" class="inline-form" style="display:flex;gap:10px;align-items:center">
+                    <form method="post" action="/admin/users/{{ u.id }}/update-info" class="inline-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                         <input type="hidden" name="username" value="{{ u.username }}">
                         <input type="hidden" name="role" value="{{ u.role }}">
+                        <span style="font-size:11px;color:var(--text-muted)">Nhân viên:</span>
+                        <input type="text" name="employee_name" value="{{ u.employee_name or '' }}" placeholder="Tên nhân viên..."
+                            style="width:140px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
+                        <span style="font-size:11px;color:var(--text-muted)">Chức vụ:</span>
+                        <input type="text" name="position" value="{{ u.position or '' }}" placeholder="VD: Trưởng nhóm..."
+                            style="width:160px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
                         <span style="font-size:11px;color:var(--text-muted)">Subdomain:</span>
                         <input type="text" name="subdomain" value="{{ u.subdomain or '' }}" placeholder="subdomain..."
-                            style="width:220px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
+                            style="width:180px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">
                         <span style="font-size:11px;color:var(--text-muted)">KPI $</span>
                         <input type="number" name="monthly_kpi" value="{{ u.monthly_kpi or 0 }}" step="1" min="0"
                             style="width:80px;padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary)">

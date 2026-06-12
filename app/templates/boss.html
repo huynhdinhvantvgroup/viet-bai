@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% set active = "boss" %}
+{% block title %}Dashboard Quản lý - tvgroup.media{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard Quản lý</h1>
+    <p>Tổng quan doanh thu và thưởng nhân viên</p>
+</div>
+
+<!-- Month filter -->
+<div style="display:flex;align-items:center;gap:0;margin-bottom:1.5rem;">
+    <button class="month-nav" onclick="changeMonth(-1)">&#8592;</button>
+    <span id="month-label" style="min-width:160px;text-align:center;font-size:14px;font-weight:500;color:var(--text-primary);"></span>
+    <button class="month-nav" id="btn-next" onclick="changeMonth(1)">&#8594;</button>
+</div>
+
+<!-- Summary cards -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.5rem;">
+    <div style="background:var(--bg-card);border-radius:10px;padding:1rem 1.25rem;border:1px solid var(--border);">
+        <p style="font-size:11px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Tổng doanh thu</p>
+        <p id="total-rev" style="font-size:22px;font-weight:500;margin:6px 0 0;color:var(--text-primary);">--</p>
+    </div>
+    <div style="background:var(--bg-card);border-radius:10px;padding:1rem 1.25rem;border:1px solid var(--border);">
+        <p style="font-size:11px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Tổng thưởng</p>
+        <p id="total-thuong" style="font-size:22px;font-weight:500;margin:6px 0 0;color:#ef6b6b;">--</p>
+    </div>
+    <div style="background:var(--bg-card);border-radius:10px;padding:1rem 1.25rem;border:1px solid var(--border);">
+        <p style="font-size:11px;color:var(--text-secondary);margin:0;text-transform:uppercase;">Doanh thu VND</p>
+        <p id="doanh-thu-vnd" style="font-size:22px;font-weight:500;margin:6px 0 0;color:#5dca7a;">--</p>
+    </div>
+</div>
+
+<!-- Employee table -->
+<div class="form-card">
+    <h3 style="font-size:14px;margin-bottom:16px;">Chi tiết nhân viên</h3>
+    <div style="overflow-x:auto;">
+        <table class="article-table" style="font-size:13px;" id="emp-table">
+            <thead>
+                <tr>
+                    <th>NV</th>
+                    <th style="text-align:right;">Views</th>
+                    <th style="text-align:right;">RPM</th>
+                    <th style="text-align:right;">Doanh thu</th>
+                    <th style="text-align:center;">Bậc</th>
+                    <th style="text-align:right;">Thưởng</th>
+                    <th style="text-align:center;">Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody id="emp-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-secondary);">Đang tải...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Bonus Tiers -->
+<div class="form-card" style="margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="font-size:14px;margin:0;">Bảng mốc thưởng</h3>
+        <button type="submit" form="tiers-form" class="btn btn-primary" style="font-size:12px;padding:6px 14px;">Lưu thay đổi</button>
+    </div>
+    <form method="post" action="/admin/bonus/tiers" id="tiers-form">
+        <div style="overflow-x:auto;">
+            <table class="article-table" style="font-size:13px;" id="tiers-table">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">Bậc</th>
+                        <th>Mốc doanh thu ($)</th>
+                        <th style="text-align:center;">Tỉ lệ</th>
+                        <th style="text-align:right;">Thưởng ít nhất</th>
+                        <th style="text-align:center;width:60px;">Số NV</th>
+                    </tr>
+                </thead>
+                <tbody id="tiers-tbody"></tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<!-- System Config -->
+<div class="form-card" style="margin-top:20px;">
+    <h3 style="font-size:14px;margin-bottom:16px">Cấu hình hệ thống</h3>
+    <form method="post" action="/admin/bonus/config">
+        <div class="form-row">
+            <div class="form-group half">
+                <label>Tỉ lệ quy đổi</label>
+                <input type="number" name="conversion_rate" value="{{ config.conversion_rate }}" step="0.01" min="0" max="1" class="cfg-input">
+                <span style="font-size:11px;color:var(--text-muted);margin-top:4px;">{{ (config.conversion_rate * 100)|int }}%</span>
+            </div>
+            <div class="form-group half">
+                <label>Tỉ giá USD/VND</label>
+                <input type="number" name="usd_vnd_rate" value="{{ config.usd_vnd_rate }}" step="100" min="0" class="cfg-input">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
+    </form>
+</div>
+
+<!-- Manual Sync -->
+<div class="form-card" style="margin-top:20px;">
+    <h3 style="font-size:14px;margin-bottom:16px">Đồng bộ AdSense</h3>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Tự động cập nhật mỗi ngày lúc 6h sáng (VN). Bấm nút để cập nhật ngay.</p>
+    <button class="btn btn-primary" onclick="manualSync()" id="sync-btn">Cập nhật</button>
+    <span id="sync-status" style="font-size:12px;color:#888;margin-left:10px;"></span>
+</div>
+
+<script>
+async function manualSync() {
+    const btn = document.getElementById('sync-btn');
+    const st = document.getElementById('sync-status');
+    btn.disabled = true;
+    st.textContent = 'Đang sync...';
+    try {
+        const resp = await fetch('/api/admin/sync-adsense', {method:'POST'});
+        const d = await resp.json();
+        st.textContent = d.message || 'Done!';
+        st.style.color = d.error ? '#ef6b6b' : '#5dca7a';
+    } catch(e) {
+        st.textContent = 'Lỗi: ' + e.message;
+        st.style.color = '#ef6b6b';
+    }
+    btn.disabled = false;
+}
+</script>
+
+<script>
+const _now = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Ho_Chi_Minh'}));
+let currentYear = _now.getFullYear(), currentMonth = _now.getMonth() + 1;
+const convRate = {{ config.conversion_rate }};
+const usdVnd = {{ config.usd_vnd_rate }};
+const rateVnd = usdVnd * convRate;
+
+function monthStr(y, m) { return `${y}-${String(m).padStart(2, '0')}`; }
+function fmt(n) { return n.toLocaleString('vi-VN'); }
+
+function updateLabel() {
+    document.getElementById('month-label').textContent = `Tháng ${currentMonth}, ${currentYear}`;
+    const nextBtn = document.getElementById('btn-next');
+    if (currentYear === _now.getFullYear() && currentMonth === _now.getMonth() + 1) {
+        nextBtn.style.visibility = 'hidden';
+    } else {
+        nextBtn.style.visibility = 'visible';
+    }
+}
+
+function changeMonth(dir) {
+    currentMonth += dir;
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    updateLabel();
+    loadData();
+}
+
+updateLabel();
+loadData();
+
+async function loadData() {
+    try {
+        const resp = await fetch(`/api/boss-overview?month=${monthStr(currentYear, currentMonth)}`);
+        if (!resp.ok) { console.error('API error', resp.status); return; }
+        const d = await resp.json();
+        if (d.error) { console.error('API:', d.error); return; }
+
+        document.getElementById('total-rev').textContent = `$${fmt(d.total_revenue)}`;
+        document.getElementById('total-thuong').textContent = fmt(d.total_thuong) + '\u0111';
+        document.getElementById('doanh-thu-vnd').textContent = fmt(d.doanh_thu_vnd) + '\u0111';
+
+        // Employee table
+        const tbody = document.getElementById('emp-tbody');
+        if (!d.employees.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);">Chưa có nhân viên</td></tr>';
+        } else {
+            tbody.innerHTML = d.employees.map(e => {
+                const accs = e.accounts.map(a => a.username).join(', ');
+                const tierLabel = e.basic_met ? `Bậc ${e.tier_idx}` : '<span style="color:#ef6b6b;">Chưa đạt</span>';
+                const statusHtml = e.basic_met
+                    ? `<span style="color:#5dca7a;font-size:11px;">&#10003; Đạt</span>`
+                    : `<div style="display:flex;align-items:center;gap:6px;">
+                         <div style="flex:1;background:var(--bg-input);border-radius:4px;height:6px;overflow:hidden;min-width:60px;">
+                           <div style="background:#ef6b6b;height:100%;width:${e.progress}%;border-radius:4px;"></div>
+                         </div>
+                         <span style="font-size:11px;color:#ef6b6b;">${e.progress}%</span>
+                       </div>`;
+                return `<tr>
+                    <td><strong>${e.name}</strong><br><span style="font-size:11px;color:var(--text-secondary);">${accs}</span></td>
+                    <td style="text-align:right;">${fmt(e.views)}</td>
+                    <td style="text-align:right;color:#9b8aef;">$${e.avg_rpm.toFixed(2)}</td>
+                    <td style="text-align:right;font-weight:500;">$${fmt(e.revenue_usd)}</td>
+                    <td style="text-align:center;">${tierLabel}</td>
+                    <td style="text-align:right;color:#5dca7a;font-weight:500;">${fmt(e.thuong_vnd)}\u0111</td>
+                    <td style="text-align:center;min-width:100px;">${statusHtml}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Tiers table
+        renderTiers(d.tiers, d.employees);
+    } catch(e) { console.error(e); }
+}
+
+function renderTiers(tiers, employees) {
+    const tbody = document.getElementById('tiers-tbody');
+    if (!tiers || !tiers.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">Chưa cấu hình</td></tr>';
+        return;
+    }
+    const tierCounts = {};
+    employees.forEach(e => { tierCounts[e.tier_idx] = (tierCounts[e.tier_idx] || 0) + 1; });
+
+    tbody.innerHTML = tiers.map((t, i) => {
+        const rate = (t.bonus_rate * 100).toFixed(0);
+        const minThuong = i === 0 ? '0đ' : fmt(Math.round(t.min_usd * rateVnd * t.bonus_rate)) + 'đ';
+        const color = i === 0 ? 'color:#ef6b6b;' : '';
+        const count = tierCounts[i] || 0;
+        const countHtml = count > 0
+            ? `<span style="background:#5b6abf;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">${count}</span>`
+            : '<span style="color:var(--text-secondary);">0</span>';
+        return `<tr>
+            <td style="font-weight:600;${color}">${i === 0 ? '—' : i}</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:4px;${color}">
+                    $<input type="number" name="min_${i}" value="${t.min_usd}" class="tier-input" style="width:70px;">
+                    –
+                    $<input type="number" name="max_${i}" value="${t.max_usd}" class="tier-input" style="width:70px;">
+                </div>
+            </td>
+            <td style="text-align:center;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:2px;">
+                    <input type="number" name="rate_${i}" value="${t.bonus_rate}" step="0.01" min="0" max="1" class="tier-input" style="width:50px;text-align:center;">
+                    <span style="color:#5dca7a;">${rate}%</span>
+                </div>
+            </td>
+            <td style="text-align:right;${color}">${minThuong}</td>
+            <td style="text-align:center;">${countHtml}</td>
+        </tr>`;
+    }).join('');
+}
+</script>
+
+<style>
+.month-nav {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.month-nav:hover {
+    border-color: #5b6abf;
+    color: var(--text-primary);
+}
+.tier-input {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 4px 6px;
+    outline: none;
+    -moz-appearance: textfield;
+}
+.tier-input::-webkit-outer-spin-button,
+.tier-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tier-input:hover { border-color: var(--border); }
+.tier-input:focus { border-color: var(--border-focus); background: var(--bg-input); }
+.cfg-input {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+}
+.cfg-input:focus {
+    border-color: var(--border-focus);
+}
+</style>
+{% endblock %}

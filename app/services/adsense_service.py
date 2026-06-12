@@ -61,9 +61,9 @@ async def get_adsense_account(access_token: str) -> dict:
 
 
 async def get_report(access_token: str, account_id: str, start_date: str, end_date: str) -> list:
-    """Get earnings report grouped by domain.
+    """Get earnings report grouped by date + domain.
     start_date/end_date format: YYYY-MM-DD
-    Returns list of dicts: [{domain, earnings, clicks, impressions, pageviews}]
+    Returns list of dicts: [{date, domain, earnings, clicks, impressions, pageviews}]
     """
     params = [
         ("dateRange", "CUSTOM"),
@@ -73,6 +73,7 @@ async def get_report(access_token: str, account_id: str, start_date: str, end_da
         ("endDate.year", end_date.split("-")[0]),
         ("endDate.month", str(int(end_date.split("-")[1]))),
         ("endDate.day", str(int(end_date.split("-")[2]))),
+        ("dimensions", "DATE"),
         ("dimensions", "DOMAIN_NAME"),
         ("metrics", "ESTIMATED_EARNINGS"),
         ("metrics", "CLICKS"),
@@ -98,7 +99,9 @@ async def get_report(access_token: str, account_id: str, start_date: str, end_da
         entry = {}
         for i, h in enumerate(headers_list):
             val = cells[i].get("value", "") if i < len(cells) else ""
-            if h == "DOMAIN_NAME":
+            if h == "DATE":
+                entry["date"] = val
+            elif h == "DOMAIN_NAME":
                 entry["domain"] = val
             elif h == "ESTIMATED_EARNINGS":
                 entry["earnings"] = float(val) if val else 0
