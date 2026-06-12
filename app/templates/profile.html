@@ -180,7 +180,7 @@ async function loadBonus() {
       const nextM = nextTier >= 0 ? d.moc_views[nextTier] : null;
       const prevViews = curTier > 0 ? d.moc_views[curTier - 1].views : 0;
       const nextViews = nextM ? nextM.views : prevViews;
-      const progressToNext = nextM ? Math.min(((d.total_views - prevViews) / (nextViews - prevViews)) * 100, 100).toFixed(0) : 100;
+      const progressToNext = nextM ? Math.min((d.total_views / nextViews) * 100, 100).toFixed(0) : 100;
       const nextThuong = nextM ? fmt(nextM.thuong) + '\u0111' : '';
 
       box.style.background = 'rgba(93,202,122,0.06)';
