@@ -9,6 +9,7 @@ from app.models import Article, User
 from app.services.gpt_generator import generate_article, generate_image_keywords
 from app.services.image_search import get_article_images
 from app.services.wp_publisher import (
+    UPLOAD_MAX_ATTEMPTS,
     upload_media_from_url_wp,
     upload_media_from_path_wp,
     insert_featured_image_into_content,
@@ -216,6 +217,7 @@ async def process_single_article(
                         img["url"],
                         f"article-{article.id}-img-{i+1}.jpg",
                         wp_cfg,
+                        max_attempts=UPLOAD_MAX_ATTEMPTS,
                     )
                     wp_image_urls.append(uploaded["url"])
                 except Exception as e:

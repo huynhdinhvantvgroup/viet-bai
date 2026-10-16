@@ -38,21 +38,28 @@ async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
     return results
 
 
-async def get_article_images(keywords: list[str]) -> list[dict]:
-    """Get one best image per keyword. Returns list of 3 image dicts."""
+# Generic keywords used when the article keywords don't yield enough images
+FALLBACK_KEYWORDS = ["healthy food", "senior wellness", "fresh vegetables", "natural remedy"]
+
+
+async def get_article_images(keywords: list[str], count: int = 3) -> list[dict]:
+    """Pick `count` unique images: one per keyword, then generic fallback keywords."""
     images = []
-    for kw in keywords[:3]:
+    seen_ids = set()
+    for kw in list(keywords) + FALLBACK_KEYWORDS:
+        if len(images) >= count:
+            break
         try:
-            results = await search_pexels(kw, per_page=3)
-            if results:
-                images.append(results[0])
-            else:
-                # Fallback with broader keyword
-                fallback = await search_pexels("healthy lifestyle senior", per_page=3)
-                if fallback:
-                    images.append(fallback[0])
-        except Exception:
-            pass
+            results = await search_pexels(kw, per_page=5)
+        except Exception as e:
+            print(f"[ERR] Pexels search '{kw}': {e}")
+            continue
+        # Take the first photo not already chosen
+        for photo in results:
+            if photo["id"] not in seen_ids:
+                seen_ids.add(photo["id"])
+                images.append(photo)
+                break
     return images
 
 

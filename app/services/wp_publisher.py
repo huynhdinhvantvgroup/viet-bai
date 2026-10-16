@@ -1,6 +1,13 @@
+import asyncio
 import base64
 import re
+from bisect import bisect_right
+
 import httpx
+
+UPLOAD_MAX_ATTEMPTS = 8
+UPLOAD_RETRY_DELAY = 2  # seconds
+_RETRY_STATUS_CODES = (401, 403)
 
 
 def _auth_header(wp_cfg: dict) -> dict:
@@ -8,31 +15,46 @@ def _auth_header(wp_cfg: dict) -> dict:
     return {"Authorization": f"Basic {token}"}
 
 
-async def upload_media_wp(image_bytes: bytes, filename: str, wp_cfg: dict, mime_type: str = "image/jpeg") -> dict:
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{wp_cfg['url']}/wp-json/wp/v2/media",
-            headers={
-                **_auth_header(wp_cfg),
-                "Content-Type": mime_type,
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
-            content=image_bytes,
-            timeout=60,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    return {"id": data["id"], "url": data.get("source_url", "")}
+async def upload_media_wp(
+    image_bytes: bytes,
+    filename: str,
+    wp_cfg: dict,
+    mime_type: str = "image/jpeg",
+    max_attempts: int = 1,
+) -> dict:
+    """Upload media to WP. Retries on 401/403 or connection errors up to max_attempts."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{wp_cfg['url']}/wp-json/wp/v2/media",
+                    headers={
+                        **_auth_header(wp_cfg),
+                        "Content-Type": mime_type,
+                        "Content-Disposition": f'attachment; filename="{filename}"',
+                    },
+                    content=image_bytes,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            return {"id": data["id"], "url": data.get("source_url", "")}
+        except (httpx.HTTPStatusError, httpx.TransportError) as e:
+            retryable = isinstance(e, httpx.TransportError) or e.response.status_code in _RETRY_STATUS_CODES
+            if not retryable or attempt >= max_attempts:
+                raise
+            print(f"[RETRY] Upload {filename} attempt {attempt}/{max_attempts}: {e}")
+            await asyncio.sleep(UPLOAD_RETRY_DELAY)
 
 
-async def upload_media_from_url_wp(image_url: str, filename: str, wp_cfg: dict) -> dict:
+async def upload_media_from_url_wp(image_url: str, filename: str, wp_cfg: dict, max_attempts: int = 1) -> dict:
     async with httpx.AsyncClient() as client:
         dl = await client.get(image_url, timeout=30)
         dl.raise_for_status()
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
     mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
     mime = mime_map.get(ext, "image/jpeg")
-    return await upload_media_wp(dl.content, filename, wp_cfg, mime)
+    return await upload_media_wp(dl.content, filename, wp_cfg, mime, max_attempts=max_attempts)
 
 
 async def upload_media_from_path_wp(file_path: str, filename: str, wp_cfg: dict) -> dict:
@@ -80,9 +102,9 @@ def _find_insert_positions(content: str, num_images: int, min_gap: int = 3, rese
     """Find positions to insert images, ensuring >=min_gap paragraphs between each.
 
     Strategy:
-    1. Prefer inserting before <h2> tags (visually clean)
-    2. If no suitable <h2>, fallback to after </p> tags
-    3. Always ensure min_gap paragraphs from previous image / start
+    1. First pass: spots right before <h2> tags (visually clean)
+    2. Second pass: fill remaining slots with spots after </p> tags
+    3. Every spot keeps >=min_gap paragraphs from the reserved top area and from other images
 
     Args:
         content: HTML content
@@ -93,70 +115,40 @@ def _find_insert_positions(content: str, num_images: int, min_gap: int = 3, rese
     if num_images == 0:
         return []
 
-    # Build list of all candidate positions: (position, type, p_count_before)
-    # p_count_before = total <p> tags from start to this position
-    p_pattern = re.compile(r"</p>", re.IGNORECASE)
-    h2_pattern = re.compile(r"(<h2[^>]*>)", re.IGNORECASE)
-
-    all_p = list(p_pattern.finditer(content))
-    all_h2 = list(h2_pattern.finditer(content))
-
-    if not all_p:
+    p_ends = [m.end() for m in re.finditer(r"</p>", content, re.IGNORECASE)]
+    if not p_ends:
         return []
 
-    # Build a function: how many <p> before position X
-    p_ends = [m.end() for m in all_p]
+    # Candidates as (position, paragraphs before position)
+    h2_candidates = [
+        (m.start(), bisect_right(p_ends, m.start()))
+        for m in re.finditer(r"<h2[^>]*>", content, re.IGNORECASE)
+    ]
+    p_candidates = [(pe, i + 1) for i, pe in enumerate(p_ends)]
 
-    def p_count_at(pos):
-        count = 0
-        for pe in p_ends:
-            if pe <= pos:
-                count += 1
-            else:
+    chosen = []  # (position, paragraphs before position)
+
+    def fits(pc: int) -> bool:
+        if pc < reserve_top + min_gap:
+            return False
+        return all(abs(pc - c) >= min_gap for _, c in chosen)
+
+    for group in (h2_candidates, p_candidates):
+        for pos, pc in group:
+            if len(chosen) >= num_images:
                 break
-        return count
+            if fits(pc):
+                chosen.append((pos, pc))
 
-    # Candidate positions: before each H2 (preferred) + after each </p> (fallback)
-    candidates = []
-    for m in all_h2:
-        candidates.append((m.start(), "h2", p_count_at(m.start())))
-    for m in all_p:
-        candidates.append((m.end(), "p", p_count_at(m.end())))
-
-    # Sort by position
-    candidates.sort(key=lambda x: x[0])
-
-    # Remove candidates in the reserved top area
-    candidates = [c for c in candidates if c[2] >= reserve_top + min_gap]
-
-    # Greedy selection: pick positions with enough gap
-    chosen = []
-    last_p_count = reserve_top  # treat reserved area as "last image position"
-
-    # Prefer H2 positions first pass, then fill with P positions
-    h2_candidates = [c for c in candidates if c[0] == "h2" or c[1] == "h2"]
-    p_candidates = [c for c in candidates if c[1] == "p"]
-
-    # Try H2 first
-    for pos, typ, pc in candidates:
-        if len(chosen) >= num_images:
-            break
-        if pc - last_p_count >= min_gap:
-            # Prefer H2: if this is an H2 position, take it
-            # If this is a P position, check if there's an H2 nearby (within 1 paragraph)
-            if typ == "h2":
-                chosen.append(pos)
-                last_p_count = pc
-            elif typ == "p":
-                # Only use P if no H2 was available at similar distance
-                # Check if next candidate is H2 and close enough
-                chosen.append(pos)
-                last_p_count = pc
-
-    return chosen
+    return sorted(pos for pos, _ in chosen)
 
 
 def insert_featured_image_into_content(content: str, featured_url: str) -> str:
+    """Insert featured image right after the intro.
+
+    Before the first <h2> that follows the first paragraph; fallback after the
+    first paragraph; final fallback at the top of the content.
+    """
     if not featured_url:
         return content
 
@@ -164,13 +156,13 @@ def insert_featured_image_into_content(content: str, featured_url: str) -> str:
 
     img_html = f'\n\n<figure class="wp-block-image size-large"><img src="{featured_url}" alt="" /></figure>\n\n'
 
-    positions = _find_insert_positions(content, 1, min_gap=3, reserve_top=0)
-    if positions:
-        pos = positions[0]
-        return content[:pos] + img_html + content[pos:]
+    first_p = re.search(r"</p>", content, re.IGNORECASE)
+    if not first_p:
+        return img_html + content
 
-    # Final fallback: append at end
-    return content + img_html
+    h2 = re.compile(r"<h2[^>]*>", re.IGNORECASE).search(content, first_p.end())
+    pos = h2.start() if h2 else first_p.end()
+    return content[:pos] + img_html + content[pos:]
 
 
 def insert_images_into_content(content: str, image_urls: list[str]) -> str:

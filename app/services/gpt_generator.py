@@ -133,29 +133,40 @@ Output the article as clean HTML for WordPress. Rules:
 
 
 async def generate_image_keywords(title: str, content: str) -> list[str]:
-    """Generate 3 English search keywords for Pexels stock photos."""
-    active_client, model = _get_client()
-    response = await active_client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You generate image search keywords for health articles. "
-                    "Return exactly 3 short English search phrases (2-4 words each) "
-                    "that would find relevant, appealing stock photos for the article. "
-                    "Focus on food, lifestyle, wellness, and senior health visuals. "
-                    "Return as a JSON array of 3 strings. No explanation."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Title: {title}\n\nFirst 200 words: {content[:800]}",
-            },
-        ],
-        max_completion_tokens=100,
-        temperature=0.5,
-    )
+    """Generate 5 English search keywords for Pexels stock photos (3 needed + 2 spare)."""
+    default_keywords = [
+        "healthy food senior",
+        "wellness lifestyle",
+        "natural remedy",
+        "fresh fruits vegetables",
+        "senior exercise",
+    ]
+    try:
+        active_client, model = _get_client()
+        response = await active_client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You generate image search keywords for health articles. "
+                        "Return exactly 5 short English search phrases (2-4 words each) "
+                        "that would find relevant, appealing stock photos for the article. "
+                        "Focus on food, lifestyle, wellness, and senior health visuals. "
+                        "Return as a JSON array of 5 strings. No explanation."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Title: {title}\n\nFirst 200 words: {content[:800]}",
+                },
+            ],
+            max_completion_tokens=150,
+            temperature=0.5,
+        )
+    except Exception as e:
+        print(f"[ERR] Image keywords: {e}")
+        return default_keywords
 
     raw = response.choices[0].message.content or "[]"
     # Clean markdown code block if present
@@ -164,8 +175,10 @@ async def generate_image_keywords(title: str, content: str) -> list[str]:
         raw = raw[4:].strip()
     try:
         keywords = json.loads(raw)
-        if isinstance(keywords, list) and len(keywords) >= 3:
-            return keywords[:3]
+        if isinstance(keywords, list):
+            keywords = [k.strip() for k in keywords if isinstance(k, str) and k.strip()]
+            if len(keywords) >= 3:
+                return keywords[:5]
     except json.JSONDecodeError:
         pass
-    return ["healthy food senior", "wellness lifestyle", "natural remedy"]
+    return default_keywords
