@@ -3,26 +3,38 @@ import app.config as _cfg
 
 # Module-level var so it can be hot-reloaded from settings
 PEXELS_API_KEY = _cfg.PEXELS_API_KEY
+PEXELS_API_KEY_2 = _cfg.PEXELS_API_KEY_2
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 
 
 async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
-    """Search Pexels for stock photos. Returns list of {url, photographer, src}."""
+    """Search Pexels for stock photos. Returns list of {url, photographer, src}.
+
+    Uses key 1 first; switches to key 2 when key 1 is rate-limited (429).
+    """
+    keys = [k for k in (PEXELS_API_KEY, PEXELS_API_KEY_2) if k]
     async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            PEXELS_SEARCH_URL,
-            headers={"Authorization": PEXELS_API_KEY},
-            params={
-                "query": keyword,
-                "per_page": per_page,
-                "orientation": "landscape",
-                "size": "medium",
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        for i, key in enumerate(keys):
+            resp = await client.get(
+                PEXELS_SEARCH_URL,
+                headers={"Authorization": key},
+                params={
+                    "query": keyword,
+                    "per_page": per_page,
+                    "orientation": "landscape",
+                    "size": "medium",
+                },
+                timeout=15,
+            )
+            if resp.status_code == 429 and i < len(keys) - 1:
+                print(f"[WARN] Pexels key {i + 1} rate-limited, switching to key {i + 2}")
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        else:
+            raise RuntimeError("Pexels API key not configured")
 
     results = []
     for photo in data.get("photos", []):

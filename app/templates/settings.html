@@ -117,6 +117,14 @@
             <small>Đăng ký miễn phí tại pexels.com/api</small>
         </div>
         <div class="form-group">
+            <label>Pexels API Key 2 (dự phòng)</label>
+            <div class="input-with-toggle">
+                <input type="password" id="pexels_key_2" value="{{ env.get('PEXELS_API_KEY_2', '') }}" placeholder="Pexels API Key 2">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('pexels_key_2', this)">Hiện</button>
+            </div>
+            <small>Dùng khi key 1 bị giới hạn lượt gọi (lỗi 429)</small>
+        </div>
+        <div class="form-group">
             <label>Google Client ID (AdSense)</label>
             <div class="input-with-toggle">
                 <input type="password" id="google_client_id" value="{{ env.get('GOOGLE_CLIENT_ID', '') }}" placeholder="xxxx.apps.googleusercontent.com">
@@ -224,6 +232,8 @@ async function saveSettings() {
     if (gptModel) data.gpt_model = gptModel.value;
     const pexelsKey = document.getElementById('pexels_key');
     if (pexelsKey) data.pexels_key = pexelsKey.value;
+    const pexelsKey2 = document.getElementById('pexels_key_2');
+    if (pexelsKey2) data.pexels_key_2 = pexelsKey2.value;
     const googleClientId = document.getElementById('google_client_id');
     if (googleClientId) data.google_client_id = googleClientId.value;
     const googleClientSecret = document.getElementById('google_client_secret');

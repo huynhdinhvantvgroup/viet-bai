@@ -19,6 +19,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # Pexels
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
+PEXELS_API_KEY_2 = os.getenv("PEXELS_API_KEY_2", "")  # used when key 1 hits rate limit (429)
 
 # WordPress
 WP_URL = os.getenv("WP_URL", "").rstrip("/")

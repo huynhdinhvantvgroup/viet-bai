@@ -432,6 +432,7 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             "gemini_key": "GEMINI_API_KEY",
             "gpt_model": "GPT_MODEL",
             "pexels_key": "PEXELS_API_KEY",
+            "pexels_key_2": "PEXELS_API_KEY_2",
             "google_client_id": "GOOGLE_CLIENT_ID",
             "google_client_secret": "GOOGLE_CLIENT_SECRET",
         }
@@ -452,6 +453,7 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             cfg.GEMINI_API_KEY = env.get("GEMINI_API_KEY", "")
             cfg.GPT_MODEL = env.get("GPT_MODEL", "gpt-5.4-mini")
             cfg.PEXELS_API_KEY = env.get("PEXELS_API_KEY", "")
+            cfg.PEXELS_API_KEY_2 = env.get("PEXELS_API_KEY_2", "")
             cfg.GOOGLE_CLIENT_ID = env.get("GOOGLE_CLIENT_ID", "")
             cfg.GOOGLE_CLIENT_SECRET = env.get("GOOGLE_CLIENT_SECRET", "")
 
@@ -459,6 +461,7 @@ async def save_settings(request: Request, db: Session = Depends(get_db)):
             gpt_generator.client = gpt_generator.AsyncOpenAI(api_key=cfg.OPENAI_API_KEY)
             gpt_generator.GEMINI_API_KEY = cfg.GEMINI_API_KEY
             image_search.PEXELS_API_KEY = cfg.PEXELS_API_KEY
+            image_search.PEXELS_API_KEY_2 = cfg.PEXELS_API_KEY_2
 
         # Save slogan
         if "slogan" in data:
