@@ -117,12 +117,12 @@
             <small>Đăng ký miễn phí tại pexels.com/api</small>
         </div>
         <div class="form-group">
-            <label>Pexels API Key 2 (dự phòng)</label>
+            <label>Pixabay API Key (dự phòng)</label>
             <div class="input-with-toggle">
-                <input type="password" id="pexels_key_2" value="{{ env.get('PEXELS_API_KEY_2', '') }}" placeholder="Pexels API Key 2">
-                <button type="button" class="btn-toggle-pw" onclick="togglePassword('pexels_key_2', this)">Hiện</button>
+                <input type="password" id="pixabay_key" value="{{ env.get('PIXABAY_API_KEY', '') }}" placeholder="Pixabay API Key">
+                <button type="button" class="btn-toggle-pw" onclick="togglePassword('pixabay_key', this)">Hiện</button>
             </div>
-            <small>Dùng khi key 1 bị giới hạn lượt gọi (lỗi 429)</small>
+            <small>Dùng khi Pexels lỗi hoặc hết lượt gọi (429). Lấy miễn phí tại pixabay.com/api/docs</small>
         </div>
         <div class="form-group">
             <label>Google Client ID (AdSense)</label>
@@ -232,8 +232,8 @@ async function saveSettings() {
     if (gptModel) data.gpt_model = gptModel.value;
     const pexelsKey = document.getElementById('pexels_key');
     if (pexelsKey) data.pexels_key = pexelsKey.value;
-    const pexelsKey2 = document.getElementById('pexels_key_2');
-    if (pexelsKey2) data.pexels_key_2 = pexelsKey2.value;
+    const pixabayKey = document.getElementById('pixabay_key');
+    if (pixabayKey) data.pixabay_key = pixabayKey.value;
     const googleClientId = document.getElementById('google_client_id');
     if (googleClientId) data.google_client_id = googleClientId.value;
     const googleClientSecret = document.getElementById('google_client_secret');

@@ -1,40 +1,30 @@
 import httpx
 import app.config as _cfg
 
-# Module-level var so it can be hot-reloaded from settings
+# Module-level vars so they can be hot-reloaded from settings
 PEXELS_API_KEY = _cfg.PEXELS_API_KEY
-PEXELS_API_KEY_2 = _cfg.PEXELS_API_KEY_2
+PIXABAY_API_KEY = _cfg.PIXABAY_API_KEY
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
+PIXABAY_SEARCH_URL = "https://pixabay.com/api/"
 
 
 async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
-    """Search Pexels for stock photos. Returns list of {url, photographer, src}.
-
-    Uses key 1 first; switches to key 2 when key 1 is rate-limited (429).
-    """
-    keys = [k for k in (PEXELS_API_KEY, PEXELS_API_KEY_2) if k]
+    """Search Pexels for stock photos. Returns list of {url, photographer, src}."""
     async with httpx.AsyncClient() as client:
-        for i, key in enumerate(keys):
-            resp = await client.get(
-                PEXELS_SEARCH_URL,
-                headers={"Authorization": key},
-                params={
-                    "query": keyword,
-                    "per_page": per_page,
-                    "orientation": "landscape",
-                    "size": "medium",
-                },
-                timeout=15,
-            )
-            if resp.status_code == 429 and i < len(keys) - 1:
-                print(f"[WARN] Pexels key {i + 1} rate-limited, switching to key {i + 2}")
-                continue
-            resp.raise_for_status()
-            data = resp.json()
-            break
-        else:
-            raise RuntimeError("Pexels API key not configured")
+        resp = await client.get(
+            PEXELS_SEARCH_URL,
+            headers={"Authorization": PEXELS_API_KEY},
+            params={
+                "query": keyword,
+                "per_page": per_page,
+                "orientation": "landscape",
+                "size": "medium",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
     results = []
     for photo in data.get("photos", []):
@@ -50,6 +40,51 @@ async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
     return results
 
 
+async def search_pixabay(keyword: str, per_page: int = 5) -> list[dict]:
+    """Search Pixabay for stock photos. Same result shape as search_pexels."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            PIXABAY_SEARCH_URL,
+            params={
+                "key": PIXABAY_API_KEY,
+                "q": keyword[:100],  # Pixabay max query length
+                "image_type": "photo",
+                "orientation": "horizontal",
+                "safesearch": "true",
+                "per_page": max(per_page, 3),  # Pixabay minimum is 3
+            },
+            timeout=15,
+        )
+        # Don't use raise_for_status: its message contains the URL with the API key
+        if resp.is_error:
+            raise RuntimeError(f"Pixabay HTTP {resp.status_code}: {resp.text[:100]}")
+        data = resp.json()
+
+    results = []
+    for hit in data.get("hits", []):
+        results.append({
+            "id": hit["id"],
+            "url": hit["largeImageURL"],  # 1280px wide
+            "medium": hit["webformatURL"],
+            "original": hit["largeImageURL"],
+            "photographer": hit.get("user", ""),
+            "alt": hit.get("tags", ""),
+            "pixabay_url": hit.get("pageURL", ""),
+        })
+    return results
+
+
+async def search_stock_images(keyword: str, per_page: int = 5) -> list[dict]:
+    """Search Pexels first; fall back to Pixabay when Pexels fails (e.g. 429)."""
+    try:
+        return await search_pexels(keyword, per_page)
+    except Exception as e:
+        if not PIXABAY_API_KEY:
+            raise
+        print(f"[WARN] Pexels search '{keyword}' failed ({e}), trying Pixabay")
+    return await search_pixabay(keyword, per_page)
+
+
 # Generic keywords used when the article keywords don't yield enough images
 FALLBACK_KEYWORDS = ["healthy food", "senior wellness", "fresh vegetables", "natural remedy"]
 
@@ -57,19 +92,19 @@ FALLBACK_KEYWORDS = ["healthy food", "senior wellness", "fresh vegetables", "nat
 async def get_article_images(keywords: list[str], count: int = 3) -> list[dict]:
     """Pick `count` unique images: one per keyword, then generic fallback keywords."""
     images = []
-    seen_ids = set()
+    seen_urls = set()
     for kw in list(keywords) + FALLBACK_KEYWORDS:
         if len(images) >= count:
             break
         try:
-            results = await search_pexels(kw, per_page=5)
+            results = await search_stock_images(kw, per_page=5)
         except Exception as e:
-            print(f"[ERR] Pexels search '{kw}': {e}")
+            print(f"[ERR] Stock image search '{kw}': {e}")
             continue
         # Take the first photo not already chosen
         for photo in results:
-            if photo["id"] not in seen_ids:
-                seen_ids.add(photo["id"])
+            if photo["url"] not in seen_urls:
+                seen_urls.add(photo["url"])
                 images.append(photo)
                 break
     return images
