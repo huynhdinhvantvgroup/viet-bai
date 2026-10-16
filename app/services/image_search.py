@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import app.config as _cfg
 
@@ -7,6 +9,8 @@ PIXABAY_API_KEY = _cfg.PIXABAY_API_KEY
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 PIXABAY_SEARCH_URL = "https://pixabay.com/api/"
+PIXABAY_MAX_ATTEMPTS = 3
+PIXABAY_RETRY_DELAY = 3  # seconds
 
 
 async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
@@ -40,33 +44,54 @@ async def search_pexels(keyword: str, per_page: int = 5) -> list[dict]:
     return results
 
 
+def _pixabay_cdn_url(hit: dict, size: int) -> str:
+    """Build a cdn.pixabay.com URL of the given width from previewURL (..._150.jpg).
+
+    pixabay.com/get/... links (largeImageURL, webformatURL) are often blocked by
+    Cloudflare (429), while cdn.pixabay.com serves the same image fine.
+    """
+    preview = hit.get("previewURL", "")
+    if "_150." in preview:
+        return preview.replace("_150.", f"_{size}.")
+    return hit["largeImageURL"]
+
+
 async def search_pixabay(keyword: str, per_page: int = 5) -> list[dict]:
-    """Search Pixabay for stock photos. Same result shape as search_pexels."""
+    """Search Pixabay for stock photos. Same result shape as search_pexels.
+
+    Retries when Cloudflare intermittently answers 429.
+    """
     async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            PIXABAY_SEARCH_URL,
-            params={
-                "key": PIXABAY_API_KEY,
-                "q": keyword[:100],  # Pixabay max query length
-                "image_type": "photo",
-                "orientation": "horizontal",
-                "safesearch": "true",
-                "per_page": max(per_page, 3),  # Pixabay minimum is 3
-            },
-            timeout=15,
-        )
+        for attempt in range(1, PIXABAY_MAX_ATTEMPTS + 1):
+            resp = await client.get(
+                PIXABAY_SEARCH_URL,
+                params={
+                    "key": PIXABAY_API_KEY,
+                    "q": keyword[:100],  # Pixabay max query length
+                    "image_type": "photo",
+                    "orientation": "horizontal",
+                    "safesearch": "true",
+                    "per_page": max(per_page, 3),  # Pixabay minimum is 3
+                },
+                timeout=15,
+            )
+            if resp.status_code == 429 and attempt < PIXABAY_MAX_ATTEMPTS:
+                print(f"[RETRY] Pixabay search '{keyword}' got 429, attempt {attempt}/{PIXABAY_MAX_ATTEMPTS}")
+                await asyncio.sleep(PIXABAY_RETRY_DELAY)
+                continue
+            break
         # Don't use raise_for_status: its message contains the URL with the API key
         if resp.is_error:
-            raise RuntimeError(f"Pixabay HTTP {resp.status_code}: {resp.text[:100]}")
+            raise RuntimeError(f"Pixabay HTTP {resp.status_code}")
         data = resp.json()
 
     results = []
     for hit in data.get("hits", []):
         results.append({
             "id": hit["id"],
-            "url": hit["largeImageURL"],  # 1280px wide
-            "medium": hit["webformatURL"],
-            "original": hit["largeImageURL"],
+            "url": _pixabay_cdn_url(hit, 1280),  # 1280px wide
+            "medium": _pixabay_cdn_url(hit, 640),
+            "original": _pixabay_cdn_url(hit, 1280),
             "photographer": hit.get("user", ""),
             "alt": hit.get("tags", ""),
             "pixabay_url": hit.get("pageURL", ""),
